@@ -159,7 +159,12 @@
   }
 
   function writeLocalState(){
-    try{if(typeof stateObj==='function') localStorage.setItem(LOCAL_STATE_KEY,JSON.stringify(stateObj()));}catch(e){}
+    try{
+      if(typeof stateObj!=='function')return;
+      const current=stateObj();
+      const archive=window.madplanArchive;
+      localStorage.setItem(LOCAL_STATE_KEY,JSON.stringify(archive?archive.compactLocal(current):current));
+    }catch(e){}
   }
 
   function restoreLocalState(){
@@ -184,33 +189,80 @@
 
   function outgoingBody(weekId,version,editor){
     const source=stateObj();
-    // Google Sheets cells have a finite size, and keepalive requests have
-    // a 64 KB body limit. Preserve the meal plan and shopping in full, and
-    // only shorten the *remote copy* of historical learning events as needed.
-    let payload=source;
-    const args=data=>new URLSearchParams({
-      action:'save',id:weekId,version,payload:JSON.stringify(data),
+    const archive=window.madplanArchive;
+    const payload=archive?archive.compact(source):source;
+    const body=new URLSearchParams({
+      action:'save',id:weekId,version,payload:JSON.stringify(payload),
       lastEditor:editor,note:activeWeek.label||''
     });
-    let body=args(payload);
-    const rawLimit=44000, encodedLimit=55000;
-    if((JSON.stringify(payload).length>rawLimit||body.toString().length>encodedLimit)
-       &&source.learning&&Array.isArray(source.learning.events)){
-      const allEvents=source.learning.events;
-      let count=allEvents.length;
-      while(count>=0){
-        payload=Object.assign({},source,{
-          learning:Object.assign({},source.learning,{events:count===0?[]:allEvents.slice(-count)})
-        });
-        body=args(payload);
-        if(JSON.stringify(payload).length<=rawLimit && body.toString().length<=encodedLimit)break;
-        if(count===0)break;
-        count=count<=8?count-1:Math.floor(count*0.75);
-      }
-    }
-    if(JSON.stringify(payload).length>rawLimit || body.toString().length>encodedLimit)
-      throw new Error('Den fælles uge er for stor til at gemme');
+    // Historiske hændelser må ikke slettes lydløst fra serverkopien.
+    // Uger, der fylder for meget, bliver arkiveret før dette kald.
+    if(JSON.stringify(payload).length>44000||body.toString().length>55000)
+      throw new Error('Fælles uge overskrider størrelsesgrænsen; ingen historik er kasseret');
     return body;
+  }
+
+  async function uploadArchiveParts(){
+    const archive=window.madplanArchive;
+    if(!archive||typeof archive.unuploaded!=='function')return;
+    const missing=archive.unuploaded(stateObj());
+    for(const part of missing){
+      const version=new Date().toISOString();
+      const body=new URLSearchParams({
+        action:'save',id:part.id,version,
+        payload:JSON.stringify(part.payload),
+        lastEditor:deviceEditor(),note:'Arkiveret madplanhistorik'
+      });
+      if(JSON.stringify(part.payload).length>44000||body.toString().length>55000)
+        throw new Error('Arkivpost er for stor');
+      await fetch(API,{
+        method:'POST',mode:'no-cors',keepalive:false,
+        headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+        body
+      });
+      let confirmed=false;
+      for(let attempt=0;attempt<3&&!confirmed;attempt++){
+        if(attempt)await new Promise(resolve=>setTimeout(resolve,600*attempt));
+        const response=await jsonp({action:'get',id:part.id});
+        confirmed=!!(response&&response.ok&&response.found&&response.week
+          &&response.week.version===version
+          &&response.week.payload
+          &&Array.isArray(response.week.payload.h));
+      }
+      if(!confirmed)throw new Error('Arkivposten blev ikke bekræftet af serveren');
+      archive.register(part.id);
+    }
+  }
+
+  let hydratingArchive=false;
+  async function hydrateArchiveParts(){
+    const archive=window.madplanArchive;
+    if(!archive||hydratingArchive)return;
+    const pending=archive.pendingHydration();
+    if(!pending.length)return;
+    hydratingArchive=true;
+    let failed=0;
+    try{
+      // Hent i små parallelle grupper, så en ny telefon gradvist
+      // kan genopbygge flere års historik uden at blokere ugeplanen.
+      for(let offset=0;offset<pending.length;offset+=4){
+        const batch=pending.slice(offset,offset+4);
+        await Promise.all(batch.map(async id=>{
+          try{
+            const response=await jsonp({action:'get',id});
+            if(!response||!response.ok||!response.found||!response.week||!response.week.payload){
+              failed++;return;
+            }
+            archive.mergeFromArchive(response.week.payload);
+            archive.markLoaded(id);
+          }catch(e){failed++;}
+        }));
+      }
+      try{renderAll();}catch(e){}
+      if(failed&&!dirty)showSyncStatus('Madplan synkroniseret, men ældre historik mangler');
+    }finally{
+      hydratingArchive=false;
+    }
   }
 
   function retryUnconfirmed(){
@@ -235,9 +287,10 @@
     const editor=deviceEditor();
     try{
       writeLocalState();
+      showSyncStatus('Synkroniserer…');
+      await uploadArchiveParts();
       const body=outgoingBody(weekId,version,editor);
       // Do not clear 'dirty' before a real read-back confirms the save.
-      showSyncStatus('Synkroniserer…');
       await fetch(API,{
         method:'POST',mode:'no-cors',keepalive:true,
         headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
@@ -380,6 +433,10 @@
         showSyncStatus('Synkroniseret');
         return;
       }
+      const archive=window.madplanArchive;
+      if(archive&&Array.isArray(data.week.payload.archiveIndex)){
+        archive.mergeIndex(data.week.payload.archiveIndex);
+      }
       syncing=true;
       shopping=[];
       pendingShopping=null;
@@ -413,6 +470,7 @@
       remoteAppliedVersion=remoteChanged;
       clearPending(remoteChanged);
       showSyncStatus('Synkroniseret');
+      if(archive)hydrateArchiveParts();
       if(repairedSuggestions)saveSession();
     }catch(e){
       syncing=false;

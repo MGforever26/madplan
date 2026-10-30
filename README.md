@@ -1,6 +1,15 @@
 # Madplan
 
-Selvstændig webapp på https://mgforever26.github.io/madplan/
+Målet er, at den selvstændige webapp publiceres på https://mgforever26.github.io/madplan/.
+
+## Aktuel status 30. oktober 2026
+
+- Frontend, opskriftsdatabase og alle otte aktive ekstrafiler er samlet i dette repository. Statisk syntakskontrol er bestået.
+- **GitHub Pages er endnu ikke aktiveret i dette repository**. Adressen ovenfor kan derfor endnu ikke bruges til daglig drift.
+- Den aktive udgave ligger indtil videre på `https://mgforever26.github.io/investeringsdashboard/madplan/`. Dens `index.html` indeholder nu den samlede kode direkte og kræver ikke en loader.
+- Næste trin: Gå til `Settings > Pages` i dette repository, vælg `Deploy from a branch`, branch `main`, folder `/(root)`, og gem. Kontrollér derefter webadressen, data og synkronisering på begge telefoner.
+- Først efter godkendt test skal den gamle side ændres til viderestilling. Slet ikke det gamle repository, før tidligere installerede mobilgenveje også er afklaret.
+- Backendens Google Apps Script og Google Sheet er fortsat eksterne. Dette repository indeholder synkroniseringsklienten og en README om Apps Script, men **ikke en fuld kopi af den deployede backendkode eller Google Sheetets data**.
 
 ## Indhold
 

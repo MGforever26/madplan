@@ -488,7 +488,11 @@
       showSyncStatus('Kunne ikke hente den fælles madplan');
     }finally{
       window.madplanBootstrapping=false;
-      try{saveSession(false);}catch(e){}
+      try{
+        if(!plan.length)generatePlan(false);
+        saveSession(false);
+        renderAll();
+      }catch(e){}
     }
   }
   bootstrapSharedWeek();

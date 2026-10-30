@@ -20,6 +20,12 @@ Målet er, at den selvstændige webapp publiceres på https://mgforever26.github
 - De øvrige JavaScript-filer bevarer de hidtidige rettelser af kategorier, mængder, ugefunktion og liste.
 - `manifest.webmanifest` og `icon.svg` bruges til mobilens webapp.
 
+## Forslagene »Oplagte denne uge«
+
+Når en ny uge oprettes, udvælger appen fem nye forslag. Historisk faktisk valgte retter prioriteres via hyppighed, tid siden sidste brug og observeret tilbagevendende rytme. De seneste to ugers forslag springes som hovedregel over, hvis der findes alternativer.
+
+Ved kort historik varierer forslagene på tværs af opskriftsdatabasen. Listen gemmes som en del af ugens metadata og synkroniseres, så begge telefoner viser samme fem forslag gennem ugen. Midlertidige testuger uden tilstrækkelig varighed regnes ikke som historiske madvaner.
+
 ## Drift og datalagring
 
 Appen publiceres via GitHub Pages. En del af tilstanden lagres lokalt i browseren, mens fælles ugens data synkroniseres via det eksisterende Google Apps Script-endpoint og et Google Sheet. Den eksterne tjeneste skal fortsat fungere, selv om al webappkode ligger i dette repository.

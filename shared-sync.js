@@ -231,6 +231,8 @@
       }
       if(!confirmed)throw new Error('Arkivposten blev ikke bekræftet af serveren');
       archive.register(part.id);
+      // Kilden har allerede hele denne arkivpost lokalt.
+      archive.markLoaded(part.id);
     }
   }
 

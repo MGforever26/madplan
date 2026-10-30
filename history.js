@@ -342,7 +342,7 @@
   }
 
   if(typeof generatePlan==='function'){
-    generatePlan=function(){
+    generatePlan=function(persist=true){
       // Reservér ugens fem forslag, så den genererede plan består af andre retter.
       const all=recipes||[];
       const reserved=new Set((activeWeek&&activeWeek.suggestionIds)||[]);
@@ -363,7 +363,7 @@
       if(activeWeek)activeWeek.suggestionsAligned=true;
       excluded={};
       buildShopping();
-      saveSession();
+      if(persist!==false)saveSession();
     };
   }
 

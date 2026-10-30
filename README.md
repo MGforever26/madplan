@@ -33,7 +33,7 @@ Ved kort historik varierer forslagene på tværs af opskriftsdatabasen. Listen g
 - Hovedposten gemmer et kompakt arkivindeks sammen med ugens madplan, indkøbsliste, regler og endnu ikke arkiveret historik. Ved installation på en anden telefon hentes arkivposterne gradvist og sammenflettes med den lokale historik.
 - I tilfælde af fejl ved arkivering gemmes den aktuelle uge stadig, **hvis** den fulde endnu ikke arkiverede datamængde kan være i hovedposten. Ellers afvises skrivningen frem for at kassere historik. Status viser, når historikarkivet afventer.
 - Separat lokal historik og læringslog bevares i de eksisterende nøgler. De almindelige browser-snapshots er forkortet for at undgå at bruge lagerplads på unødvendige kopier.
-- Under **Retbibliotek** kan brugeren hente en samlet JSON-sikkerhedskopi af alle lokalt tilgængelige maduger, læringshændelser og opskrifter. Eksporten afviser at starte, mens ældre cloud-arkiver stadig indlæses. Denne fil gemmes på brugerens egen enhed.
+- Historik og læringshændelser indsamles og arkiveres automatisk, når brugeren ændrer madplanen eller indkøbslisten. Brugerens daglige arbejdsgang kræver ingen manuel eksport. Konkrete mønsterforslag kan vises, når appen har tilstrækkelig kvalificeret historik.
 - Automatisk arkivering er gennemgået med simuleret server og bl.a. 14 afsluttede uger, 336 hændelser samt en kapacitetsberegning for 520 uger og 10.000 hændelser. **Faktisk arkivskrivning via den deployede Apps Script-backend er ikke verificeret**. Den praktiske ende-til-ende-kontrol er stadig nødvendig.
 
 ## Drift og datalagring

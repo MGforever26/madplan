@@ -158,9 +158,11 @@
   if(typeof newWeekMeta==='function'){
     const oldNewWeekMeta=newWeekMeta;
     newWeekMeta=function(){
-      const previousSuggestions=new Set(
-        activeWeek&&Array.isArray(activeWeek.suggestionIds)?activeWeek.suggestionIds:[]
-      );
+      const lastSuggestions=activeWeek&&Array.isArray(activeWeek.suggestionIds)
+        ?activeWeek.suggestionIds.slice(0,5):[];
+      const olderSuggestions=activeWeek&&Array.isArray(activeWeek.suggestionRecentIds)
+        ?activeWeek.suggestionRecentIds.slice(0,5):[];
+      const previousSuggestions=new Set([...lastSuggestions,...olderSuggestions]);
       archiveCurrentWeek();
       const m=oldNewWeekMeta();
       const now=new Date().toISOString();
@@ -168,6 +170,7 @@
       m.createdAt=now;
       m.lastSeenAt=now;
       m.suggestionIds=(suggestions.ids||[]).slice(0,5);
+      m.suggestionRecentIds=lastSuggestions;
       m.suggestionCold=!!suggestions.cold;
       m.suggestionsAligned=true;
       m.suggestionAssignments={};
@@ -195,6 +198,7 @@
         o.w.createdAt=(activeWeek&&activeWeek.createdAt)||null;
         o.w.lastSeenAt=(activeWeek&&activeWeek.lastSeenAt)||null;
         o.w.suggestionIds=(activeWeek&&Array.isArray(activeWeek.suggestionIds))?activeWeek.suggestionIds.slice(0,5):[];
+        o.w.suggestionRecentIds=(activeWeek&&Array.isArray(activeWeek.suggestionRecentIds))?activeWeek.suggestionRecentIds.slice(0,5):[];
         o.w.suggestionCold=!!(activeWeek&&activeWeek.suggestionCold);
         o.w.suggestionsAligned=!!(activeWeek&&activeWeek.suggestionsAligned);
         o.w.suggestionAssignments=(activeWeek&&activeWeek.suggestionAssignments)||{};
@@ -410,7 +414,7 @@
     }
     // Først retter, I faktisk har valgt, men ikke har fået for nylig.
     // Dernæst varierede startforslag, mens der endnu mangler historik.
-    // Sidste uges forslag udelades, så længe der findes alternativer.
+    // De seneste to ugers forslag udelades, så længe der findes alternativer.
     add(ranked,true);
     add(starters,true);
     add(all.map(r=>r.id),true);

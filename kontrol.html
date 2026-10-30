@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; form-action 'none'">
+<title>Madplan: Lokal datakontrol</title>
+<style>
+:root{color-scheme:light;font-family:system-ui,-apple-system,Arial,sans-serif;background:#f7f5f2;color:#252525}*{box-sizing:border-box}body{max-width:650px;margin:0 auto;padding:28px 18px 60px;line-height:1.45}h1{font-size:1.5rem;margin:0 0 .5rem}h2{font-size:1.07rem;margin:25px 0 9px}.small{font-size:.9rem;color:#555}.card{padding:16px;border-radius:15px;background:#fff;border:1px solid #e3ded7;margin:12px 0}dl{display:grid;grid-template-columns:1fr 1fr;gap:11px 8px}dt{font-size:.85rem;color:#555}dd{margin:0;font-weight:650;overflow-wrap:anywhere}button{border:0;border-radius:10px;padding:13px 16px;background:#800020;color:#fff;font-size:1rem;font-weight:600}ul{padding-left:24px;max-height:220px;overflow:auto}.note{background:#f1e8e9;border-radius:10px;padding:12px}strong{font-weight:700}
+</style>
+</head>
+<body>
+<h1>Madplan: Kontrol af lokale data</h1>
+<p class="small">Denne side læser kun data fra den browser, du åbner den i. Den ændrer intet og kontakter ikke synkroniseringsserveren. Åbn den i Safari, hvis du tidligere tilføjede æbler i Safari.</p>
+<div class="card">
+<h2>Hvad ligger der på denne enhed?</h2>
+<dl id="status"><dt>Undersøger</dt><dd>Lokalt lager</dd></dl>
+</div>
+<div class="card">
+<h2>Manuelt tilføjede varer</h2>
+<p id="items" class="small">Undersøger…</p>
+</div>
+<div class="card">
+<h2>Læringshistorik</h2>
+<p id="history" class="small">Undersøger…</p>
+</div>
+<p class="note">Vigtigt: Hvis den manglende vare findes her, skal du bevare dette browserlager, mens vi laver en sikker genskabelse. Slet ikke Safari-data eller appikoner.</p>
+<button type="button" id="backup">Gem lokal sikkerhedskopi</button>
+<p class="small">Sikkerhedskopien gemmes kun på din egen enhed. Intet sendes til GitHub, ChatGPT eller andre tjenester.</p>
+<script>
+(function(){
+  'use strict';
+  const KEYS=['madplan_state_local_v1','madplan_week_meta_v1','madplan_learning_v1','madplan_meal_history_v1','madplan_recipes_v1','madplan_last_new_week_reset_v2','madplan_new_week_nonfood_reset_v1'];
+  const SESSION=['madplan_state_v1'];
+  function parse(raw){try{return JSON.parse(raw)}catch(e){return null}}
+  function read(storage,k){try{return storage.getItem(k)}catch(e){return null}}
+  const rawLocal={},rawSession={};
+  for(const k of KEYS){const v=read(localStorage,k);if(v!==null)rawLocal[k]=v}
+  for(const k of SESSION){const v=read(sessionStorage,k);if(v!==null)rawSession[k]=v}
+  const state=parse(rawLocal.madplan_state_local_v1)||parse(rawSession.madplan_state_v1)||{};
+  const week=parse(rawLocal.madplan_week_meta_v1)||state.w||{};
+  const history=parse(rawLocal.madplan_meal_history_v1)||state.h||[];
+  const learning=parse(rawLocal.madplan_learning_v1)||state.learning||{};
+  const shopping=Array.isArray(state.shopping)?state.shopping:[];
+  const manual=shopping.filter(x=>['manuelt','ekstra','delt'].includes(x.source)&&x.name);
+  const apple=shopping.filter(x=>String(x.name||'').trim().toLocaleLowerCase('da-DK')==='æbler');
+  const learningEvents=Array.isArray(learning.events)?learning.events:[];
+  const appleEvents=learningEvents.filter(x=>String(x.item||'').trim().toLocaleLowerCase('da-DK')==='æbler');
+  function date(x){if(!x)return 'Ukendt';const d=new Date(x);return isNaN(d.getTime())?'Ukendt':d.toLocaleString('da-DK',{dateStyle:'short',timeStyle:'short'})}
+  function node(tag,txt){const a=document.createElement(tag);a.textContent=txt;return a}
+  const status=document.getElementById('status');status.replaceChildren();
+  for(const [k,v] of [
+    ['Lokal uge',week.label||'Ikke fundet'],
+    ['Senest ændret',date(week.changedAt||week.updatedAt)],
+    ['Gemte varer',String(shopping.length)],
+    ['Æbler på listen',apple.length?'JA, '+apple.length+' fundet':'Nej'],
+    ['Læringshændelser om æbler',String(appleEvents.length)],
+    ['Arkiverede uger',String(Array.isArray(history)?history.length:0)]
+  ])status.append(node('dt',k),node('dd',v));
+  const itemNode=document.getElementById('items');
+  if(!manual.length)itemNode.textContent='Ingen manuelt tilføjede varer fundet i dette lokale lager.';
+  else{itemNode.textContent='';const ul=document.createElement('ul');for(const x of manual){ul.append(node('li',x.name+' ('+(Number(x.qty)||1)+')'))}itemNode.append(ul)}
+  const histNode=document.getElementById('history');
+  histNode.textContent='Læringshændelser: '+learningEvents.length+'. Gemte regler: '+(Array.isArray(learning.rules)?learning.rules.length:0)+'. Arkiverede uger: '+(Array.isArray(history)?history.length:0)+'.';
+  document.getElementById('backup').addEventListener('click',()=>{
+    const content=JSON.stringify({format:'madplan-local-backup-v1',exportedAt:new Date().toISOString(),sourceOrigin:location.origin,localStorage:rawLocal,sessionStorage:rawSession},null,2);
+    const url=URL.createObjectURL(new Blob([content],{type:'application/json;charset=utf-8'}));
+    const a=document.createElement('a');a.href=url;a.download='madplan-lokal-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+  });
+})();
+</script>
+</body>
+</html>

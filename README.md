@@ -4,12 +4,10 @@ Målet er, at den selvstændige webapp publiceres på https://mgforever26.github
 
 ## Aktuel status 30. oktober 2026
 
-- Frontend, opskriftsdatabase og alle otte aktive ekstrafiler er samlet i dette repository. Statisk syntakskontrol er bestået.
-- **GitHub Pages er endnu ikke aktiveret i dette repository**. Adressen ovenfor kan derfor endnu ikke bruges til daglig drift.
-- Den aktive udgave ligger indtil videre på `https://mgforever26.github.io/investeringsdashboard/madplan/`. Dens `index.html` indeholder nu den samlede kode direkte og kræver ikke en loader.
-- Næste trin: Gå til `Settings > Pages` i dette repository, vælg `Deploy from a branch`, branch `main`, folder `/(root)`, og gem. Kontrollér derefter webadressen, data og synkronisering på begge telefoner.
-- Først efter godkendt test skal den gamle side ændres til viderestilling. Slet ikke det gamle repository, før tidligere installerede mobilgenveje også er afklaret.
-- Backendens Google Apps Script og Google Sheet er fortsat eksterne. Dette repository indeholder synkroniseringsklienten og en README om Apps Script, men **ikke en fuld kopi af den deployede backendkode eller Google Sheetets data**.
+- Den selvstændige app er publiceret på GitHub Pages: https://mgforever26.github.io/madplan/.
+- Den tidligere adresse på https://mgforever26.github.io/investeringsdashboard/madplan/ er bevaret som alternativ, indtil begge telefoner er kontrolleret.
+- Den fælles uge bruger fortsat den eksisterende Google Apps Script-backend. Den kører uden at flytte eller nulstille den nuværende uge.
+- Backendens deployede Apps Script-kode ligger ikke i dette repository og er ikke blevet ændret.
 
 ## Indhold
 
@@ -17,6 +15,7 @@ Målet er, at den selvstændige webapp publiceres på https://mgforever26.github
 - `recipes.json` indeholder opskriftsdatabasen.
 - `shared-sync.js` håndterer fælles uge og synkronisering via Google Apps Script.
 - `history.js` og `learning.js` håndterer historik, variation og forslag.
+- `archive.js` opbevarer et indeks over særskilte historikposter og håndterer hentning af historik på en ny telefon.
 - De øvrige JavaScript-filer bevarer de hidtidige rettelser af kategorier, mængder, ugefunktion og liste.
 - `manifest.webmanifest` og `icon.svg` bruges til mobilens webapp.
 
@@ -25,6 +24,16 @@ Målet er, at den selvstændige webapp publiceres på https://mgforever26.github
 Når en ny uge oprettes, udvælger appen fem nye forslag. Historisk faktisk valgte retter prioriteres via hyppighed, tid siden sidste brug og observeret tilbagevendende rytme. De seneste to ugers forslag springes som hovedregel over, hvis der findes alternativer.
 
 Ved kort historik varierer forslagene på tværs af opskriftsdatabasen. Listen gemmes som en del af ugens metadata og synkroniseres, så begge telefoner viser samme fem forslag gennem ugen. Midlertidige testuger uden tilstrækkelig varighed regnes ikke som historiske madvaner.
+
+## Langtidslagring af historik
+
+- Lokal kapacitet: op til **520 afsluttede uger** og **10.000 læringshændelser**. Dette er lagergrænser, ikke en garanti for ti års fuldstændig historik, hvis browserens lokale data slettes.
+- Den aktive uge gemmes som før. Når der er flere end to afsluttede uger, flyttes de ældre uger automatisk til selvstændige arkivposter via samme Google Apps Script-endpoint.
+- Hver arkivpost rummer én afsluttet uge eller et udsnit på højst 28 læringshændelser. Serveren skal kvittere med samme versionsnummer via en efterfølgende læsning, før arkivposten føjes til indekset.
+- Hovedposten gemmer et kompakt arkivindeks sammen med ugens madplan, indkøbsliste, regler og endnu ikke arkiveret historik. Ved installation på en anden telefon hentes arkivposterne gradvist og sammenflettes med den lokale historik.
+- I tilfælde af fejl ved arkivering gemmes den aktuelle uge stadig, **hvis** den fulde endnu ikke arkiverede datamængde kan være i hovedposten. Ellers afvises skrivningen frem for at kassere historik. Status viser, når historikarkivet afventer.
+- Separat lokal historik og læringslog bevares i de eksisterende nøgler. De almindelige browser-snapshots er forkortet for at undgå at bruge lagerplads på unødvendige kopier.
+- Automatisk arkivering er gennemgået med simuleret server og bl.a. 14 afsluttede uger, 336 hændelser samt en kapacitetsberegning for 520 uger og 10.000 hændelser. **Faktisk arkivskrivning via den deployede Apps Script-backend er ikke verificeret**. Den praktiske ende-til-ende-kontrol er stadig nødvendig.
 
 ## Drift og datalagring
 

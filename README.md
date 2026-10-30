@@ -1,20 +1,24 @@
 # Madplan
 
-Statisk GitHub Pages app til ugens madplan, indkøbsliste, PDF og deling af uge.
+Selvstændig webapp på https://mgforever26.github.io/madplan/
 
-## Adresse
+## Indhold
 
-https://mgforever26.github.io/madplan/
+- `index.html` er den komplette aktive madplan med ugevisning og indkøbsliste.
+- `recipes.json` indeholder opskriftsdatabasen.
+- `shared-sync.js` håndterer fælles uge og synkronisering via Google Apps Script.
+- `history.js` og `learning.js` håndterer historik, variation og forslag.
+- De øvrige JavaScript-filer bevarer de hidtidige rettelser af kategorier, mængder, ugefunktion og liste.
+- `manifest.webmanifest` og `icon.svg` bruges til mobilens webapp.
 
-## Workflow
+## Drift og datalagring
 
-1. Vælg ugens retter og justér indkøbsliste.
-2. Brug `Del uge` til at sende aktuelle valg videre som direkte link.
-3. Modtageren kan åbne linket, justere lokalt og eventuelt dele tilbage.
-4. Endelig version gemmes med `Download PDF`.
+Appen publiceres via GitHub Pages. En del af tilstanden lagres lokalt i browseren, mens fælles ugens data synkroniseres via det eksisterende Google Apps Script-endpoint og et Google Sheet. Den eksterne tjeneste skal fortsat fungere, selv om al webappkode ligger i dette repository.
 
-## Placering
+Appens oprindelige version i `MGforever26/investeringsdashboard/madplan` brugte en loader, der hentede dette repositorys `index.html` og tilføjede funktioner dynamisk. Disse funktioner er nu indarbejdet direkte, og filerne ligger lokalt her.
 
-Appen er flyttet hertil fra `MGforever26/investeringsdashboard/madplan`.
+## Migrering 30. oktober 2026
 
-Den gamle adresse viderestiller til denne app og bevarer `#uge=...`, så gamle delingslinks fortsat virker.
+Backup før flytningen: branch `backup-before-consolidation-2026-10-30` i begge oprindelige repositories.
+
+Den gamle URL bør først fjernes, når begge telefoner har fået den nye adresse og praktiske tests af synkronisering, historik og indkøbslister er gennemført. Ellers kan gemte genveje ophøre med at virke.

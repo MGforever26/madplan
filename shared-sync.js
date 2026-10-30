@@ -62,6 +62,15 @@
     }catch(e){}
   }
 
+  function confirmedStatus(){
+    try{
+      const archive=window.madplanArchive;
+      if(archive&&archive.unuploaded(stateObj()).length)
+        return 'Madplan gemt · historikarkiv afventer';
+    }catch(e){}
+    return 'Synkroniseret';
+  }
+
   function refreshWeekHeader(){
     try{
       const node=document.querySelector('[data-week-last-change]');
@@ -445,7 +454,7 @@
         activeWeek.savedAt=data.week.updatedAt||remoteMeta.savedAt||activeWeek.savedAt;
         saveWeekMeta();
         refreshWeekHeader();
-        showSyncStatus('Synkroniseret');
+        showSyncStatus(confirmedStatus());
         return;
       }
       const archive=window.madplanArchive;
@@ -484,7 +493,7 @@
       syncing=false;
       remoteAppliedVersion=remoteChanged;
       clearPending(remoteChanged);
-      showSyncStatus('Synkroniseret');
+      showSyncStatus(confirmedStatus());
       if(archive)hydrateArchiveParts();
       if(repairedSuggestions)saveSession();
     }catch(e){

@@ -237,6 +237,7 @@
   }
 
   let hydratingArchive=false;
+  let archiveRetryAfter=0;
   async function hydrateArchiveParts(){
     const archive=window.madplanArchive;
     if(!archive||hydratingArchive)return;
@@ -290,7 +291,19 @@
     try{
       writeLocalState();
       showSyncStatus('Synkroniserer…');
-      await uploadArchiveParts();
+      let archiveFailed=false;
+      if(Date.now()>=archiveRetryAfter){
+        try{
+          await uploadArchiveParts();
+          archiveRetryAfter=0;
+        }catch(e){
+          // Hvis arkivserveren fejler, må den aktuelle uge stadig
+          // gemmes, forudsat at ALLE endnu uarkiverede data kan være
+          // i hovedposten. outgoingBody afviser ellers skrivningen.
+          archiveFailed=true;
+          archiveRetryAfter=Date.now()+15*60000;
+        }
+      }else archiveFailed=true;
       const body=outgoingBody(weekId,version,editor);
       // Do not clear 'dirty' before a real read-back confirms the save.
       await fetch(API,{
@@ -316,7 +329,7 @@
         remoteAppliedVersion=version;
         clearPending(version);
         markSaved(confirmed.updatedAt||new Date().toISOString(),confirmed.lastEditor||editor);
-        showSyncStatus('Synkroniseret');
+        showSyncStatus(archiveFailed?'Madplan gemt · historikarkiv afventer':'Synkroniseret');
       }
     }catch(e){
       dirty=true;

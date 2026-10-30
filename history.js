@@ -158,10 +158,13 @@
   if(typeof newWeekMeta==='function'){
     const oldNewWeekMeta=newWeekMeta;
     newWeekMeta=function(){
+      const previousSuggestions=new Set(
+        activeWeek&&Array.isArray(activeWeek.suggestionIds)?activeWeek.suggestionIds:[]
+      );
       archiveCurrentWeek();
       const m=oldNewWeekMeta();
       const now=new Date().toISOString();
-      const suggestions=calculateSuggestionState();
+      const suggestions=calculateSuggestionState(new Set(),previousSuggestions);
       m.createdAt=now;
       m.lastSeenAt=now;
       m.suggestionIds=(suggestions.ids||[]).slice(0,5);
@@ -371,7 +374,11 @@
     if(mealHistory.length<2||!Array.isArray(recipes)) return [];
     return recipes.map(r=>{
       const s=historyStats(r.name);
-      return {r,s,score:recipeWeight(r)};
+      // En ret, der jævnligt vælges, skal prioriteres over et enkelt
+      // historisk valg. Hvor længe siden den sidst var på planen,
+      // indgår allerede i recipeWeight.
+      const regularity=1+Math.min(0.75,Math.max(0,s.usedWeeks-1)*0.15);
+      return {r,s,score:recipeWeight(r)*regularity};
     }).filter(x=>x.s.usedWeeks>0&&x.s.lastIndex>0)
       .sort((a,b)=>b.score-a.score||b.s.lastIndex-a.s.lastIndex||a.r.name.localeCompare(b.r.name,'da'))
       .slice(0,limit).map(x=>x.r.id);
@@ -388,17 +395,29 @@
     return ids.slice(0,limit);
   }
 
-  function calculateSuggestionState(exclude=new Set()){
+  function calculateSuggestionState(exclude=new Set(),previouslySuggested=new Set()){
     const all=recipes||[];
     const ranked=rankedSuggestionIds(all.length).filter(id=>!exclude.has(id));
-    const ids=[...ranked];
-    // Selv ved kort historik giver vi fem konkrete alternativer.
-    starterSuggestionIds(all.length).forEach(id=>{
-      if(ids.length<5&&!exclude.has(id)&&!ids.includes(id))ids.push(id);
-    });
-    all.forEach(r=>{
-      if(ids.length<5&&!exclude.has(r.id)&&!ids.includes(r.id))ids.push(r.id);
-    });
+    const starters=starterSuggestionIds(all.length);
+    const prior=new Set(previouslySuggested||[]);
+    const ids=[];
+    function add(candidates,avoidPrevious){
+      for(const id of candidates){
+        if(ids.length>=5)break;
+        if(exclude.has(id)||ids.includes(id)||(avoidPrevious&&prior.has(id)))continue;
+        ids.push(id);
+      }
+    }
+    // Først retter, I faktisk har valgt, men ikke har fået for nylig.
+    // Dernæst varierede startforslag, mens der endnu mangler historik.
+    // Sidste uges forslag udelades, så længe der findes alternativer.
+    add(ranked,true);
+    add(starters,true);
+    add(all.map(r=>r.id),true);
+    // Små opskriftsdatabaser skal stadig kunne vise op til fem retter.
+    add(ranked,false);
+    add(starters,false);
+    add(all.map(r=>r.id),false);
     return {ids:ids.slice(0,5),cold:!ranked.length&&mealHistory.length<2};
   }
 
@@ -532,7 +551,7 @@
       box.style.padding='13px 16px';
       box.style.marginBottom='14px';
       const note=state.cold
-        ?'Her fremhæves retter, vi ofte vælger, men ikke har fået for nylig. Forslagene bliver skarpere, efterhånden som vi bygger historik op. De samme retter ligger øverst i retvælgerne nedenfor.'
+        ?'Forslagene varierer fra uge til uge og bliver mere personlige, efterhånden som vi samler historik om jeres valg. De samme forslag ligger øverst i retvælgerne nedenfor.'
         :'Baseret på hvad vi plejer at vælge, og hvor længe siden retterne sidst var på planen. De samme forslag ligger øverst i retvælgerne nedenfor.';
 
       const chosen=suggested.find(r=>r.id===selectedSuggestionId);

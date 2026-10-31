@@ -1,7 +1,7 @@
 /* Ombyt to dage uden at ændre ugens øvrige indhold. */
 (function(){
   'use strict';
-  let chosenDay=null;
+  let openDay=null;
 
   function moveDayKeys(source, a, b){
     const next={};
@@ -27,13 +27,13 @@
 
   function swapDays(a,b){
     if(!Array.isArray(plan)||!Number.isInteger(a)||!Number.isInteger(b)||
-       a<0||b<0||a>=plan.length||b>=plan.length||a===b)return;
+       a<0||b<0||a>=plan.length||b>=plan.length||a===b)return false;
     const amounts=window.madplanIngredientQuantities;
     // Do not discard per-recipe quantity choices if an older cached script is loaded.
     if(amounts&&typeof amounts.overrides==='function'&&
        Object.keys(amounts.overrides()).length&&typeof amounts.swapDays!=='function'){
       alert('Opdatér siden, før du bytter dage, så dine valgte mængder bevares.');
-      return;
+      return false;
     }
     const swapped=plan.slice();
     const temporary=swapped[a];
@@ -49,53 +49,97 @@
     // der ellers kan nulstille eller genberegne brugerens tilpasninger.
     saveSession();
     renderAll();
+    return true;
   }
 
-  function chooseDay(day){
-    if(chosenDay===null){
-      chosenDay=day;
-      refreshChoice();
-      return;
-    }
-    if(chosenDay===day){
-      chosenDay=null;
-      refreshChoice();
-      return;
-    }
-    const first=chosenDay;
-    chosenDay=null;
-    swapDays(first,day);
-    refreshChoice();
+  function openPicker(day){
+    openDay=openDay===day?null:day;
+    refreshPicker();
   }
 
-  function refreshChoice(){
+  function refreshPicker(){
     const grid=document.querySelector('#plan .grid.days');
     if(!grid)return;
-    if(chosenDay!==null&&chosenDay>=plan.length)chosenDay=null;
+    if(openDay!==null&&(openDay<0||openDay>=plan.length))openDay=null;
+    grid.querySelectorAll('[data-day-swap-panel]').forEach(panel=>panel.remove());
     grid.querySelectorAll('[data-swap-day]').forEach(button=>{
       const day=Number(button.dataset.swapDay);
-      const active=day===chosenDay;
+      const active=openDay===day;
       button.setAttribute('aria-pressed',String(active));
-      button.setAttribute('aria-label',chosenDay===null?'Byt dag '+(day+1):
-        active?'Annullér bytning af dag '+(day+1):'Byt dag '+(chosenDay+1)+' med dag '+(day+1));
-      button.title=chosenDay===null?'Byt med en anden dag':active?'Annullér bytning':'Byt med dag '+(day+1);
+      button.setAttribute('aria-expanded',String(active));
+      button.setAttribute('aria-label',active?'Luk bytning for dag '+(day+1):'Byt dag '+(day+1));
+      button.title=active?'Luk bytning':'Byt med en anden dag';
       button.style.color=active?'var(--accent)':'var(--muted)';
       button.style.background=active?'var(--soft)':'transparent';
       button.style.borderColor=active?'var(--accent)':'var(--line)';
     });
-    let hint=document.getElementById('day-swap-hint');
-    if(chosenDay===null){
-      if(hint)hint.remove();
-    }else{
-      if(!hint){
-        hint=document.createElement('p');
-        hint.id='day-swap-hint';
-        hint.className='sub';
-        hint.style.cssText='margin:10px 2px 8px;color:var(--accent);font-size:13px';
-        grid.parentNode.insertBefore(hint,grid);
+    if(openDay===null)return;
+    const currentDay=openDay;
+    const card=grid.querySelectorAll('.day')[currentDay];
+    const heading=card&&card.querySelector('h3');
+    const row=heading&&heading.parentNode&&heading.parentNode.parentNode;
+    if(!row||!row.parentNode)return;
+
+    const panel=document.createElement('div');
+    panel.dataset.daySwapPanel=String(currentDay);
+    panel.setAttribute('role','group');
+    panel.setAttribute('aria-label','Byt dag '+(currentDay+1)+' med en anden dag');
+    panel.style.cssText='margin:10px 0 12px;padding:11px;border:1px solid var(--line);border-radius:12px;background:var(--bg)';
+
+    const label=document.createElement('label');
+    label.htmlFor='day-swap-target';
+    label.textContent='Byt dag '+(currentDay+1)+' med:';
+    label.style.cssText='display:block;font-size:13px;font-weight:600;margin-bottom:7px';
+    panel.appendChild(label);
+
+    const controls=document.createElement('div');
+    controls.style.cssText='display:flex;align-items:center;gap:7px;min-width:0';
+
+    const target=document.createElement('select');
+    target.id='day-swap-target';
+    target.style.cssText='flex:1;min-width:0;width:100%;font-size:14px;padding:8px 9px;border:1px solid var(--line);border-radius:9px;background:white;color:var(--text)';
+    const placeholder=document.createElement('option');
+    placeholder.value='';
+    placeholder.textContent='Vælg dag';
+    target.appendChild(placeholder);
+    plan.forEach((rid,day)=>{
+      if(day===currentDay)return;
+      const option=document.createElement('option');
+      option.value=String(day);
+      const recipe=byId(rid);
+      option.textContent='Dag '+(day+1)+(recipe&&recipe.name?' · '+cap(recipe.name):'');
+      target.appendChild(option);
+    });
+
+    const submit=document.createElement('button');
+    submit.type='button';
+    submit.textContent='Byt';
+    submit.disabled=true;
+    submit.style.cssText='padding:9px 12px;flex-shrink:0;border:0;border-radius:9px;background:var(--accent);color:white;font:inherit;font-size:13px;font-weight:600;cursor:pointer';
+    submit.style.opacity='0.45';
+    target.addEventListener('change',()=>{
+      submit.disabled=target.value==='';
+      submit.style.opacity=submit.disabled?'0.45':'1';
+    });
+    submit.addEventListener('click',()=>{
+      if(target.value==='')return;
+      const otherDay=Number(target.value);
+      openDay=null;
+      if(!swapDays(currentDay,otherDay)){
+        openDay=currentDay;
+        refreshPicker();
       }
-      hint.textContent='Dag '+(chosenDay+1)+' er valgt. Tryk på ↔ ved den dag, du vil bytte med.';
-    }
+    });
+    controls.appendChild(target);
+    controls.appendChild(submit);
+    panel.appendChild(controls);
+
+    const explanation=document.createElement('p');
+    explanation.textContent='Retterne bytter plads. Indkøbslisten bevares.';
+    explanation.style.cssText='margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.4';
+    panel.appendChild(explanation);
+
+    row.parentNode.insertBefore(panel,row.nextSibling);
   }
 
   function decorate(){
@@ -114,10 +158,10 @@
       button.dataset.swapDay=String(day);
       button.textContent='↔';
       button.style.cssText='display:inline-flex;align-items:center;justify-content:center;width:29px;height:29px;min-width:29px;padding:0;border:1px solid var(--line);border-radius:50%;background:transparent;color:var(--muted);font-size:18px;line-height:1;cursor:pointer';
-      button.addEventListener('click',()=>chooseDay(day));
+      button.addEventListener('click',()=>openPicker(day));
       pair.appendChild(button);
     });
-    refreshChoice();
+    refreshPicker();
   }
 
   if(typeof renderPlan==='function'){

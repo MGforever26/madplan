@@ -75,10 +75,12 @@
     });
     if(openDay===null)return;
     const currentDay=openDay;
-    const card=grid.querySelectorAll('.day')[currentDay];
-    const heading=card&&card.querySelector('h3');
-    const row=heading&&heading.parentNode&&heading.parentNode.parentNode;
-    if(!row||!row.parentNode)return;
+    // Find altid kortet via det ikon, brugeren faktisk trykkede på.
+    // Panelet må aldrig placeres som en fælles besked over hele planen.
+    const trigger=grid.querySelector('[data-swap-day="'+currentDay+'"]');
+    const card=trigger&&trigger.closest('.day');
+    const row=trigger&&trigger.closest('.row');
+    if(!card||!row||!card.contains(row)||!row.parentNode)return;
 
     const panel=document.createElement('div');
     panel.dataset.daySwapPanel=String(currentDay);
@@ -139,7 +141,8 @@
     explanation.style.cssText='margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.4';
     panel.appendChild(explanation);
 
-    row.parentNode.insertBefore(panel,row.nextSibling);
+    // Indsæt lige under overskriften inde i DET valgte dagskort.
+    row.insertAdjacentElement('afterend',panel);
   }
 
   function decorate(){

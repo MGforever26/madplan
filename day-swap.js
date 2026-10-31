@@ -62,44 +62,50 @@
     if(!grid)return;
     if(openDay!==null&&(openDay<0||openDay>=plan.length))openDay=null;
     grid.querySelectorAll('[data-day-swap-panel]').forEach(panel=>panel.remove());
+    grid.querySelectorAll('.day').forEach(card=>{
+      card.style.zIndex='';
+    });
     grid.querySelectorAll('[data-swap-day]').forEach(button=>{
       const day=Number(button.dataset.swapDay);
       const active=openDay===day;
       button.setAttribute('aria-pressed',String(active));
       button.setAttribute('aria-expanded',String(active));
       button.setAttribute('aria-label',active?'Luk bytning for dag '+(day+1):'Byt dag '+(day+1));
-      button.title=active?'Luk bytning':'Byt med en anden dag';
+      button.title=active?'Luk':'Byt dag';
       button.style.color=active?'var(--accent)':'var(--muted)';
       button.style.background=active?'var(--soft)':'transparent';
       button.style.borderColor=active?'var(--accent)':'var(--line)';
     });
     if(openDay===null)return;
+
     const currentDay=openDay;
-    // Find altid kortet via det ikon, brugeren faktisk trykkede på.
-    // Panelet må aldrig placeres som en fælles besked over hele planen.
     const trigger=grid.querySelector('[data-swap-day="'+currentDay+'"]');
     const card=trigger&&trigger.closest('.day');
-    const row=trigger&&trigger.closest('.row');
-    if(!card||!row||!card.contains(row)||!row.parentNode)return;
+    const anchor=trigger&&trigger.parentNode;
+    if(!card||!anchor||!card.contains(anchor))return;
+    card.style.position='relative';
+    card.style.zIndex='20';
+    anchor.style.position='relative';
 
+    // Flydende menu lige ved det valgte ikon: udvider ikke dagskortet.
     const panel=document.createElement('div');
     panel.dataset.daySwapPanel=String(currentDay);
     panel.setAttribute('role','group');
-    panel.setAttribute('aria-label','Byt dag '+(currentDay+1)+' med en anden dag');
-    panel.style.cssText='margin:10px 0 12px;padding:11px;border:1px solid var(--line);border-radius:12px;background:var(--bg)';
+    panel.setAttribute('aria-label','Byt dag '+(currentDay+1));
+    panel.style.cssText='position:absolute;top:calc(100% + 7px);left:0;width:220px;max-width:calc(100vw - 100px);z-index:25;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;box-shadow:0 10px 28px rgba(41,24,18,.14);font-weight:400';
 
     const label=document.createElement('label');
     label.htmlFor='day-swap-target';
-    label.textContent='Byt dag '+(currentDay+1)+' med:';
-    label.style.cssText='display:block;font-size:13px;font-weight:600;margin-bottom:7px';
+    label.textContent='Byt med';
+    label.style.cssText='display:block;margin:0 0 6px;font-size:12px;font-weight:600;color:var(--text)';
     panel.appendChild(label);
 
     const controls=document.createElement('div');
-    controls.style.cssText='display:flex;align-items:center;gap:7px;min-width:0';
+    controls.style.cssText='display:flex;align-items:center;gap:6px;min-width:0';
 
     const target=document.createElement('select');
     target.id='day-swap-target';
-    target.style.cssText='flex:1;min-width:0;width:100%;font-size:14px;padding:8px 9px;border:1px solid var(--line);border-radius:9px;background:white;color:var(--text)';
+    target.style.cssText='flex:1;min-width:0;width:100%;font-size:13px;padding:8px;border:1px solid var(--line);border-radius:8px;background:white;color:var(--text)';
     const placeholder=document.createElement('option');
     placeholder.value='';
     placeholder.textContent='Vælg dag';
@@ -108,8 +114,7 @@
       if(day===currentDay)return;
       const option=document.createElement('option');
       option.value=String(day);
-      const recipe=byId(rid);
-      option.textContent='Dag '+(day+1)+(recipe&&recipe.name?' · '+cap(recipe.name):'');
+      option.textContent='Dag '+(day+1);
       target.appendChild(option);
     });
 
@@ -117,8 +122,7 @@
     submit.type='button';
     submit.textContent='Byt';
     submit.disabled=true;
-    submit.style.cssText='padding:9px 12px;flex-shrink:0;border:0;border-radius:9px;background:var(--accent);color:white;font:inherit;font-size:13px;font-weight:600;cursor:pointer';
-    submit.style.opacity='0.45';
+    submit.style.cssText='padding:9px 10px;flex-shrink:0;border:0;border-radius:8px;background:var(--accent);color:white;font:inherit;font-size:13px;font-weight:600;cursor:pointer;opacity:.45';
     target.addEventListener('change',()=>{
       submit.disabled=target.value==='';
       submit.style.opacity=submit.disabled?'0.45':'1';
@@ -132,17 +136,17 @@
         refreshPicker();
       }
     });
+
     controls.appendChild(target);
     controls.appendChild(submit);
     panel.appendChild(controls);
 
     const explanation=document.createElement('p');
     explanation.textContent='Retterne bytter plads. Indkøbslisten bevares.';
-    explanation.style.cssText='margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.4';
+    explanation.style.cssText='margin:7px 0 0;font-size:11px;line-height:1.35;color:var(--muted)';
     panel.appendChild(explanation);
 
-    // Indsæt lige under overskriften inde i DET valgte dagskort.
-    row.insertAdjacentElement('afterend',panel);
+    anchor.appendChild(panel);
   }
 
   function decorate(){
@@ -175,6 +179,21 @@
       return result;
     };
   }
+  // Luk menuen ved tryk udenfor eller Escape. Ingen ændringer gemmes.
+  document.addEventListener('pointerdown',event=>{
+    if(openDay===null)return;
+    const target=event.target;
+    if(target&&typeof target.closest==='function'&&
+       (target.closest('[data-day-swap-panel]')||target.closest('[data-swap-day]')))return;
+    openDay=null;
+    refreshPicker();
+  });
+  document.addEventListener('keydown',event=>{
+    if(event.key==='Escape'&&openDay!==null){
+      openDay=null;
+      refreshPicker();
+    }
+  });
   // Kun DOM-dekoration ved indlæsning: ingen gemning eller ny uge.
   decorate();
 })();

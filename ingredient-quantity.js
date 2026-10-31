@@ -122,10 +122,28 @@
       +'</div></details>';
   }
 
+  function swapDayOverrides(a,b){
+    const next={};
+    Object.keys(values).forEach(key=>{
+      const parts=key.split('|');
+      if(parts.length<4){next[key]=values[key];return;}
+      const sourceDay=parts[0];
+      const targetDay=sourceDay===String(a)?String(b):sourceDay===String(b)?String(a):sourceDay;
+      if(targetDay!==sourceDay){
+        parts[0]=targetDay;
+        // recordKey: dag|opskrift|dag|ingrediens|kategori
+        if(parts[2]===sourceDay)parts[2]=targetDay;
+      }
+      next[parts.join('|')]=values[key];
+    });
+    values=next;
+    editing=null;
+  }
+
   window.changeIngredientAmount=change;
   window.editIngredientAmount=edit;
   window.madplanIngredientQuantities={renderDay,contributions,
-    overrides:()=>Object.assign({},values)};
+    overrides:()=>Object.assign({},values),swapDays:swapDayOverrides};
 
   if(typeof stateObj==='function'){
     const previous=stateObj;

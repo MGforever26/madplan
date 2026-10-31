@@ -92,59 +92,33 @@
     panel.dataset.daySwapPanel=String(currentDay);
     panel.setAttribute('role','group');
     panel.setAttribute('aria-label','Byt dag '+(currentDay+1));
-    panel.style.cssText='position:absolute;top:calc(100% + 7px);left:0;width:220px;max-width:calc(100vw - 100px);z-index:25;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;box-shadow:0 10px 28px rgba(41,24,18,.14);font-weight:400';
+    panel.style.cssText='position:absolute;top:calc(100% + 6px);left:0;width:198px;max-width:calc(100vw - 85px);z-index:25;background:#fff;border:1px solid var(--line);border-radius:11px;padding:9px;box-shadow:0 8px 22px rgba(41,24,18,.13);font-weight:400';
 
-    const label=document.createElement('label');
-    label.htmlFor='day-swap-target';
-    label.textContent='Byt med';
-    label.style.cssText='display:block;margin:0 0 6px;font-size:12px;font-weight:600;color:var(--text)';
+    const label=document.createElement('div');
+    label.textContent='Byt med dag';
+    label.style.cssText='margin:0 0 7px;font-size:12px;font-weight:600;color:var(--muted)';
     panel.appendChild(label);
 
-    const controls=document.createElement('div');
-    controls.style.cssText='display:flex;align-items:center;gap:6px;min-width:0';
-
-    const target=document.createElement('select');
-    target.id='day-swap-target';
-    target.style.cssText='flex:1;min-width:0;width:100%;font-size:13px;padding:8px;border:1px solid var(--line);border-radius:8px;background:white;color:var(--text)';
-    const placeholder=document.createElement('option');
-    placeholder.value='';
-    placeholder.textContent='Vælg dag';
-    target.appendChild(placeholder);
+    const choices=document.createElement('div');
+    choices.style.cssText='display:flex;flex-wrap:wrap;gap:6px';
     plan.forEach((rid,day)=>{
       if(day===currentDay)return;
-      const option=document.createElement('option');
-      option.value=String(day);
-      option.textContent='Dag '+(day+1);
-      target.appendChild(option);
+      const choice=document.createElement('button');
+      choice.type='button';
+      choice.dataset.swapTarget=String(day);
+      choice.textContent=String(day+1);
+      choice.setAttribute('aria-label','Byt dag '+(currentDay+1)+' med dag '+(day+1));
+      choice.style.cssText='display:inline-flex;align-items:center;justify-content:center;width:37px;height:37px;flex:0 0 37px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);font:inherit;font-size:14px;font-weight:600;cursor:pointer';
+      choice.addEventListener('click',()=>{
+        openDay=null;
+        if(!swapDays(currentDay,day)){
+          openDay=currentDay;
+          refreshPicker();
+        }
+      });
+      choices.appendChild(choice);
     });
-
-    const submit=document.createElement('button');
-    submit.type='button';
-    submit.textContent='Byt';
-    submit.disabled=true;
-    submit.style.cssText='padding:9px 10px;flex-shrink:0;border:0;border-radius:8px;background:var(--accent);color:white;font:inherit;font-size:13px;font-weight:600;cursor:pointer;opacity:.45';
-    target.addEventListener('change',()=>{
-      submit.disabled=target.value==='';
-      submit.style.opacity=submit.disabled?'0.45':'1';
-    });
-    submit.addEventListener('click',()=>{
-      if(target.value==='')return;
-      const otherDay=Number(target.value);
-      openDay=null;
-      if(!swapDays(currentDay,otherDay)){
-        openDay=currentDay;
-        refreshPicker();
-      }
-    });
-
-    controls.appendChild(target);
-    controls.appendChild(submit);
-    panel.appendChild(controls);
-
-    const explanation=document.createElement('p');
-    explanation.textContent='Retterne bytter plads. Indkøbslisten bevares.';
-    explanation.style.cssText='margin:7px 0 0;font-size:11px;line-height:1.35;color:var(--muted)';
-    panel.appendChild(explanation);
+    panel.appendChild(choices);
 
     anchor.appendChild(panel);
   }

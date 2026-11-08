@@ -1332,12 +1332,16 @@
     "type": "vegetar",
     "ingredients": [
       {
-        "name": "tortellini",
-        "category": "mælkeprodukter og pålæg"
+        "name": "pasta",
+        "category": "konserves og tørvarer"
       },
       {
-        "name": "tortellini",
-        "category": "mælkeprodukter og pålæg"
+        "name": "pasta",
+        "category": "konserves og tørvarer"
+      },
+      {
+        "name": "basilikum",
+        "category": "grøntsager og frugt"
       },
       {
         "name": "pinjekærner",

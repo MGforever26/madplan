@@ -510,7 +510,7 @@
       if(repairedSuggestions)saveSession();
     }catch(e){
       syncing=false;
-      showSyncStatus('Kunne ikke kontrollere fælles madplan');
+      showSyncStatus('Kunne ikke kontrollere fælles madplan · '+describeSyncFailure(e));
     }
   }
 

@@ -158,6 +158,21 @@
     }catch(e){}
   }
 
+  function shoppingMatchesSnapshot(data){
+    if(!data||!Array.isArray(data.sx)||!data.sx.length)return true;
+    try{
+      const actual=new Map(shoppingSnapshot().map(x=>{
+        const cat=typeof x[1]==='number'?(CATS[x[1]]||'andet'):(x[1]||'andet');
+        return [shoppingKey(x[0],cat,x[2]),{qty:Number(x[3])||1,on:x[4]!==false}];
+      }));
+      return data.sx.every(x=>{
+        const cat=typeof x[1]==='number'?(CATS[x[1]]||'andet'):(x[1]||'andet');
+        const item=actual.get(shoppingKey(x[0],cat,x[2]));
+        return !!item&&item.qty===(Number(x[3])||1)&&item.on===(x[4]!==false);
+      });
+    }catch(e){return false;}
+  }
+
   if(typeof stateObj==='function'){
     const oldStateObj=stateObj;
     stateObj=function(){
@@ -487,7 +502,9 @@
         activeWeek.savedAt=data.week.updatedAt||remoteMeta.savedAt||activeWeek.savedAt;
         saveWeekMeta();
         refreshWeekHeader();
-        showSyncStatus(confirmedStatus());
+        showSyncStatus(shoppingMatchesSnapshot(data.week.payload)
+          ?confirmedStatus()
+          :'Synkronisering ufuldstændig · vareantal stemmer ikke med serveren');
         return;
       }
       const archive=window.madplanArchive;
@@ -523,6 +540,19 @@
       saveSession(false);
       writeLocalState();
       renderAll();
+      // Presentation extensions must not silently replace downloaded counts.
+      if(!shoppingMatchesSnapshot(data.week.payload)){
+        applyShoppingSnapshot(data.week.payload);
+        renderList();
+        renderPrint();
+        saveSession(false);
+        writeLocalState();
+        if(!shoppingMatchesSnapshot(data.week.payload)){
+          syncing=false;
+          showSyncStatus('Synkronisering ufuldstændig · vareantal stemmer ikke med serveren');
+          return;
+        }
+      }
       syncing=false;
       remoteAppliedVersion=remoteChanged;
       clearPending(remoteChanged);

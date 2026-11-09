@@ -69,7 +69,8 @@
       if(archive&&archive.unuploaded(stateObj()).length)
         return 'Madplan gemt · historikarkiv afventer';
     }catch(e){}
-    return 'Synkroniseret';
+    const checked=new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});
+    return 'Synkroniseret · kontrolleret kl. '+checked;
   }
 
   function refreshWeekHeader(){
@@ -674,7 +675,7 @@
   setInterval(()=>{
     if(document.hidden||dirty||sending||syncing)return;
     loadRemote(activeWeek.id||CURRENT_ID,false);
-  },60000);
+  },30000);
 
   window.addEventListener('pagehide',()=>saveRemoteNow(false));
   window.addEventListener('beforeunload',()=>saveRemoteNow(false));

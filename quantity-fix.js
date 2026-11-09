@@ -1,5 +1,6 @@
 (function(){
-  let needsCorrection=false;
+  // Beregn kun grundmængder ved en reel genopbygning af indkøbslisten.
+  // Indlæste og manuelt justerede mængder må ikke overskrives under visning.
 
   function normName(x){
     return cleanName(x).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
@@ -57,27 +58,10 @@
     buildShopping=function(opts={}){
       previousBuildShopping(opts);
       correctGeneratedQuantities();
-      needsCorrection=true;
     };
   }
 
-  if(typeof renderAll==='function'){
-    const previousRenderAll=renderAll;
-    renderAll=function(){
-      if(needsCorrection){
-        const changed=correctGeneratedQuantities();
-        needsCorrection=false;
-        if(changed){try{saveSession(false);}catch(e){}}
-      }
-      return previousRenderAll();
-    };
-  }
-
-  try{
-    buildShopping();
-    correctGeneratedQuantities();
-    needsCorrection=false;
-    saveSession(false);
-    renderAll();
-  }catch(e){}
+  // Intet ekstra buildShopping() ved indlæsning. Appens eksisterende
+  // initialisering genskaber listen, og synkroniseringen anvender derefter
+  // de gemte antal uden at blive nulstillet af en render-funktion.
 })();

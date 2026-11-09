@@ -158,6 +158,26 @@
     }catch(e){}
   }
 
+  // Compare every saved item, not only the version string returned by the server.
+  function sameShoppingSnapshots(a,b){
+    if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return false;
+    const keyed=rows=>{
+      const out=new Map();
+      for(const item of rows){
+        if(!Array.isArray(item)||item.length<5)return null;
+        const cat=typeof item[1]==='number'?(CATS[item[1]]||'andet'):(item[1]||'andet');
+        const key=shoppingKey(item[0],cat,item[2]);
+        if(out.has(key))return null;
+        out.set(key,JSON.stringify([Number(item[3])||1,item[4]!==false]));
+      }
+      return out;
+    };
+    const expected=keyed(a),actual=keyed(b);
+    if(!expected||!actual||expected.size!==actual.size)return false;
+    for(const [k,value] of expected)if(actual.get(k)!==value)return false;
+    return true;
+  }
+
   function shoppingMatchesSnapshot(data){
     if(!data||!Array.isArray(data.sx)||!data.sx.length)return true;
     try{
@@ -232,7 +252,7 @@
     }
     if(JSON.stringify(storedPayload).length>44000||body.toString().length>55000)
       throw new Error('Fælles uge overskrider størrelsesgrænsen selv efter komprimering; ingen historik er kasseret');
-    return body;
+    return {body,expectedItems:source.sx,expectedPlan:source.plan};
   }
 
   async function uploadArchiveParts(){
@@ -305,6 +325,8 @@
     const message=String((error&&error.message)||error||'');
     if(message.includes('størrelsesgrænsen')) return 'Datamængden er stadig for stor efter komprimering';
     if(message.includes('Arkivpost er for stor')) return 'En historikpost er for stor';
+    if(message.includes('Serveren gemte ikke de samme vareantal som sendt')) return 'Vareantal på serveren afviger fra ændringen';
+    if(message.includes('Serveren gemte ikke den samme madplan som sendt')) return 'Madplan på serveren afviger fra ændringen';
     if(message.includes('Serveren bekræftede ikke den gemte version')) return 'Serveren bekræfter ikke den gemte version';
     if(/failed to fetch|networkerror|load failed|timeout/i.test(message)) return 'Serveren svarer ikke på forespørgslen';
     return message ? message.slice(0,100) : 'Ukendt fejl';
@@ -346,7 +368,7 @@
           archiveRetryAfter=Date.now()+15*60000;
         }
       }else archiveFailed=true;
-      const body=await outgoingBody(weekId,version,editor);
+      const {body,expectedItems,expectedPlan}=await outgoingBody(weekId,version,editor);
       // Do not clear 'dirty' before a real read-back confirms the save.
       await fetch(API,{
         method:'POST',mode:'no-cors',keepalive:true,
@@ -367,8 +389,13 @@
           // be decoded before reporting successful synchronization.
           const codec=window.madplanPayloadCodec;
           const unpacked=codec?await codec.decompress(remote.payload):remote.payload;
-          if(unpacked&&Array.isArray(unpacked.plan)&&Array.isArray(unpacked.shopping))
+          if(unpacked&&Array.isArray(unpacked.plan)&&Array.isArray(unpacked.shopping)){
+            if(!sameShoppingSnapshots(expectedItems,unpacked.sx))
+              throw new Error('Serveren gemte ikke de samme vareantal som sendt');
+            if(JSON.stringify(expectedPlan)!==JSON.stringify(unpacked.plan))
+              throw new Error('Serveren gemte ikke den samme madplan som sendt');
             confirmed=remote;
+          }
         }
       }
       if(!confirmed)throw new Error('Serveren bekræftede ikke den gemte version');

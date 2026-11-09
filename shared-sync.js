@@ -26,6 +26,7 @@
   }
   if(!API) return;
   let syncing=false,timer=null,dirty=false,sending=false,retryCount=0;
+  let lastFailureReason='Ukendt fejl';
   let remoteAppliedVersion=null;
   const PENDING_KEY='madplan_pending_sync_v1';
   function pendingLocal(){
@@ -277,10 +278,19 @@
     }
   }
 
+  function describeSyncFailure(error){
+    const message=String((error&&error.message)||error||'');
+    if(message.includes('størrelsesgrænsen')) return 'Datamængden er for stor til serveren';
+    if(message.includes('Arkivpost er for stor')) return 'En historikpost er for stor';
+    if(message.includes('Serveren bekræftede ikke den gemte version')) return 'Serveren bekræfter ikke den gemte version';
+    if(/failed to fetch|networkerror|load failed|timeout/i.test(message)) return 'Serveren svarer ikke på forespørgslen';
+    return message ? message.slice(0,100) : 'Ukendt fejl';
+  }
+
   function retryUnconfirmed(){
     clearTimeout(retryTimer);
     if(retryCount>=3){
-      showSyncStatus('Synkronisering mislykkedes – kontrollér forbindelsen');
+      showSyncStatus('Synkronisering mislykkedes · '+lastFailureReason);
       return;
     }
     retryCount++;
@@ -335,6 +345,7 @@
       if(activeWeek.id===weekId&&activeWeek.changedAt===version){
         dirty=false;
         retryCount=0;
+        lastFailureReason='';
         remoteAppliedVersion=version;
         clearPending(version);
         markSaved(confirmed.updatedAt||new Date().toISOString(),confirmed.lastEditor||editor);
@@ -342,7 +353,8 @@
       }
     }catch(e){
       dirty=true;
-      showSyncStatus('Synkronisering ikke bekræftet – prøver igen');
+      lastFailureReason=describeSyncFailure(e);
+      showSyncStatus('Synkronisering ikke bekræftet · '+lastFailureReason+' · prøver igen');
       retryUnconfirmed();
     }finally{
       sending=false;

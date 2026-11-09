@@ -197,18 +197,26 @@
     }catch(e){return false;}
   }
 
-  function outgoingBody(weekId,version,editor){
+  async function outgoingBody(weekId,version,editor){
     const source=stateObj();
     const archive=window.madplanArchive;
     const payload=archive?archive.compact(source):source;
-    const body=new URLSearchParams({
-      action:'save',id:weekId,version,payload:JSON.stringify(payload),
+    const createBody=value=>new URLSearchParams({
+      action:'save',id:weekId,version,payload:JSON.stringify(value),
       lastEditor:editor,note:activeWeek.label||''
     });
-    // Historiske hændelser må ikke slettes lydløst fra serverkopien.
-    // Uger, der fylder for meget, bliver arkiveret før dette kald.
-    if(JSON.stringify(payload).length>44000||body.toString().length>55000)
-      throw new Error('Fælles uge overskrider størrelsesgrænsen; ingen historik er kasseret');
+    let storedPayload=payload;
+    let body=createBody(storedPayload);
+    // Use lossless compression only when the original data exceeds
+    // the safe cell or form size. Never silently discard history.
+    if(JSON.stringify(storedPayload).length>44000||body.toString().length>55000){
+      const codec=window.madplanPayloadCodec;
+      if(!codec)throw new Error('Komprimering mangler i den indlæste appversion');
+      storedPayload=await codec.compress(payload);
+      body=createBody(storedPayload);
+    }
+    if(JSON.stringify(storedPayload).length>44000||body.toString().length>55000)
+      throw new Error('Fælles uge overskrider størrelsesgrænsen selv efter komprimering; ingen historik er kasseret');
     return body;
   }
 
@@ -280,7 +288,7 @@
 
   function describeSyncFailure(error){
     const message=String((error&&error.message)||error||'');
-    if(message.includes('størrelsesgrænsen')) return 'Datamængden er for stor til serveren';
+    if(message.includes('størrelsesgrænsen')) return 'Datamængden er stadig for stor efter komprimering';
     if(message.includes('Arkivpost er for stor')) return 'En historikpost er for stor';
     if(message.includes('Serveren bekræftede ikke den gemte version')) return 'Serveren bekræfter ikke den gemte version';
     if(/failed to fetch|networkerror|load failed|timeout/i.test(message)) return 'Serveren svarer ikke på forespørgslen';
@@ -323,7 +331,7 @@
           archiveRetryAfter=Date.now()+15*60000;
         }
       }else archiveFailed=true;
-      const body=outgoingBody(weekId,version,editor);
+      const body=await outgoingBody(weekId,version,editor);
       // Do not clear 'dirty' before a real read-back confirms the save.
       await fetch(API,{
         method:'POST',mode:'no-cors',keepalive:true,
@@ -339,7 +347,14 @@
         if(!response||!response.ok||!response.found||!response.week)continue;
         const remote=response.week, meta=(remote.payload&&remote.payload.w)||{};
         const stored=remote.version||meta.changedAt||meta.updatedAt;
-        if(stored===version)confirmed=remote;
+        if(stored===version){
+          // Confirm that a newly written compressed record can actually
+          // be decoded before reporting successful synchronization.
+          const codec=window.madplanPayloadCodec;
+          const unpacked=codec?await codec.decompress(remote.payload):remote.payload;
+          if(unpacked&&Array.isArray(unpacked.plan)&&Array.isArray(unpacked.shopping))
+            confirmed=remote;
+        }
       }
       if(!confirmed)throw new Error('Serveren bekræftede ikke den gemte version');
       if(activeWeek.id===weekId&&activeWeek.changedAt===version){
@@ -438,6 +453,12 @@
     try{
       if(!weekId || syncing || sending || dirty) return;
       const data=await jsonp({action:'get',id:weekId});
+      if(data&&data.ok&&data.found&&data.week&&data.week.payload){
+        const codec=window.madplanPayloadCodec;
+        if(data.week.payload.__madplan_format&&!codec)
+          throw new Error('Opdater appen for at læse komprimeret madplan');
+        data.week.payload=codec?await codec.decompress(data.week.payload):data.week.payload;
+      }
       // En ændring kan være lavet på telefonen, mens serveren svarede.
       if(sending||dirty)return;
       if(!data || !data.ok || !data.found || !data.week || !data.week.payload){

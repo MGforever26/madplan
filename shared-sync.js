@@ -524,14 +524,13 @@
         return;
       }
       if(remoteAppliedVersion===remoteChanged && localChanged && remoteChanged &&
-         new Date(remoteChanged).getTime()===new Date(localChanged).getTime()){
+         new Date(remoteChanged).getTime()===new Date(localChanged).getTime() &&
+         shoppingMatchesSnapshot(data.week.payload)){
         activeWeek.lastEditor=data.week.lastEditor||remoteMeta.lastEditor||activeWeek.lastEditor;
         activeWeek.savedAt=data.week.updatedAt||remoteMeta.savedAt||activeWeek.savedAt;
         saveWeekMeta();
         refreshWeekHeader();
-        showSyncStatus(shoppingMatchesSnapshot(data.week.payload)
-          ?confirmedStatus()
-          :'Synkronisering ufuldstændig · vareantal stemmer ikke med serveren');
+        showSyncStatus(confirmedStatus());
         return;
       }
       const archive=window.madplanArchive;
@@ -646,7 +645,9 @@
   async function bootstrapSharedWeek(){
     try{
       if(window.madplanInitReady)await window.madplanInitReady;
-      try{restoreLocalState();buildShopping();renderAll();}catch(e){}
+      // restoreLocalState builds the list and reapplies its stored quantities.
+      // Rebuilding it again here silently reset edited recipe counts to defaults.
+      try{if(!restoreLocalState())buildShopping();renderAll();}catch(e){}
       const urlWeek=new URLSearchParams(location.search).get('week');
       if(urlWeek){
         activeWeek=Object.assign({},activeWeek,{id:urlWeek});

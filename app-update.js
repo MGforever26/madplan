@@ -8,10 +8,21 @@
   let checking=false;
   let lastCheck=0;
 
+  function checksum(input){
+    let hash=2166136261;
+    for(let i=0;i<input.length;i++){
+      hash=Math.imul(hash^input.charCodeAt(i),16777619);
+    }
+    return (hash>>>0).toString(16);
+  }
   function scriptSignature(doc){
-    return [...doc.querySelectorAll('script[src]')]
-      .map(node=>(node.getAttribute('src')||'').trim())
-      .filter(Boolean).join('|');
+    const scripts=[...doc.querySelectorAll('script')].map(node=>{
+      const src=node.getAttribute('src');
+      return src?'file:'+src:'inline:'+checksum(node.textContent||'');
+    });
+    const styles=[...doc.querySelectorAll('style')]
+      .map(node=>'style:'+checksum(node.textContent||''));
+    return [...scripts,...styles].join('|');
   }
   function savedWithoutPendingChanges(){
     try{

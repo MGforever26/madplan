@@ -69,8 +69,7 @@
       if(archive&&archive.unuploaded(stateObj()).length)
         return 'Madplan gemt · historikarkiv afventer';
     }catch(e){}
-    const checked=new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});
-    return 'Synkroniseret · kontrolleret kl. '+checked;
+    return 'Synkroniseret';
   }
 
   function refreshWeekHeader(){

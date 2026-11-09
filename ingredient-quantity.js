@@ -175,24 +175,9 @@
       return out;
     };
   }
-  // quantity-fix runs just before renderAll and may recheck generated counts.
-  // Keep the final rendering consistent with the per-day quantity choices.
-  if(typeof renderAll==='function'){
-    const previous=renderAll;
-    renderAll=function(){
-      const out=previous.apply(this,arguments);
-      if(Object.keys(values).length){
-        const before=(shopping||[]).map(i=>i.source==='ret'?[i.id,i.qty]:null).filter(Boolean);
-        alignEditedShopping();
-        const changed=before.some(([id,qty])=>shopping.some(i=>i.id===id&&i.qty!==qty));
-        if(changed){
-          renderList();
-          renderPrint();
-        }
-      }
-      return out;
-    };
-  }
+  // Et allerede indlæst antal fra den fælles indkøbsliste er autoritativt
+  // ved visning. Ingrediensernes egne antal anvendes fortsat, når
+  // buildShopping() beregner listen efter ændringer i madplanen.
 
   bootstrap();
   try{renderPlan();}catch(e){}

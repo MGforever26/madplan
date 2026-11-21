@@ -544,14 +544,12 @@
       const allowedById=new Map(allowed.map(recipe=>[recipe.id,recipe]));
       const ranked=restricted?rankedSuggestionIds(recipes.length).filter(id=>!plan.includes(id)):[];
       const suggested=[...new Set([...state.ids,...ranked])].map(id=>allowedById.get(id)).filter(Boolean).slice(0,5);
-      const suggestedSet=new Set(suggested.map(x=>x.id));
-      const rest=allowed.filter(x=>!suggestedSet.has(x.id));
       const picker='<details data-meal-picker="'+i+'" style="margin:10px 0">'
         +'<summary style="cursor:pointer;border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:#fff;font-weight:600">'+esc(cap(r.name))+'</summary>'
         +'<div data-meal-menu="'+i+'" style="margin-top:6px;border:1px solid var(--line);border-radius:14px;padding:8px;background:#fff;max-height:360px;overflow:auto">'
         +(suggested.length?'<div class="sub" style="font-weight:700;padding:5px 8px 6px">Oplagte denne uge</div>'+suggested.map(x=>pickerRow(i,x,x.id===rid)).join(''):'')
-        +(rest.length?'<div class="sub" style="font-weight:700;padding:10px 8px 6px">'+(restricted?'Øvrige børnesikre retter':'Alle øvrige retter')+'</div>'
-          +rest.map(x=>pickerRow(i,x,x.id===rid)).join(''):'')
+        +(allowed.length?'<div class="sub" style="font-weight:700;padding:10px 8px 6px">'+(restricted?'Børnesikre retter':'Alle retter')+'</div>'
+          +allowed.map(x=>pickerRow(i,x,x.id===rid)).join(''):'')
         +(!allowed.length?'<div class="sub" style="padding:8px">Sæt kryds ved børnesikre retter i retbiblioteket.</div>':'')
         +'</div></details>';
       return '<div class="card day"><div class="bubble">'+(i+1)+'</div><div><div class="row" style="justify-content:space-between"><h3>Dag '+(i+1)+'</h3><span class="pill">'+esc(r.type)+'</span></div>'

@@ -2,6 +2,7 @@
   {
     "name": "fish and chips",
     "type": "fisk",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "torsk",
@@ -20,6 +21,7 @@
   {
     "name": "pasta og kødboller",
     "type": "kød",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "pasta",
@@ -80,6 +82,7 @@
   {
     "name": "pølsebrød",
     "type": "kød",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "pølsebrød",
@@ -98,6 +101,7 @@
   {
     "name": "rød karry",
     "type": "kød",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "kylling",
@@ -132,6 +136,7 @@
   {
     "name": "blomkålssuppe",
     "type": "vegetar",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "kartofler",
@@ -162,6 +167,7 @@
   {
     "name": "pasta carbonara",
     "type": "kød",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "pasta",
@@ -226,6 +232,7 @@
   {
     "name": "burger",
     "type": "kød",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "burgerboller",
@@ -264,6 +271,7 @@
   {
     "name": "rødspættefilet",
     "type": "fisk",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "rødspættefilet",
@@ -336,6 +344,7 @@
   {
     "name": "risengrød",
     "type": "vegetar",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "sødmælk",
@@ -358,6 +367,7 @@
   {
     "name": "tomatsuppe",
     "type": "vegetar",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "hakkede tomater",
@@ -512,6 +522,7 @@
   {
     "name": "nudelsuppe",
     "type": "vegetar",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "nudler",
@@ -610,6 +621,7 @@
   {
     "name": "tacos",
     "type": "kød",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "pulled pork",
@@ -648,6 +660,7 @@
   {
     "name": "butter chicken",
     "type": "kød",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "kylling",
@@ -682,6 +695,7 @@
   {
     "name": "pizza",
     "type": "kød",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "mozzarella",
@@ -804,6 +818,7 @@
   {
     "name": "pastasalat med kylling",
     "type": "kød",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "pasta",
@@ -1218,6 +1233,7 @@
   {
     "name": "tortellinisuppe",
     "type": "vegetar",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "tortellini",
@@ -1260,6 +1276,7 @@
   {
     "name": "fiskefrikadeller",
     "type": "fisk",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "fiskefars",
@@ -1330,6 +1347,7 @@
   {
     "name": "pasta med pesto",
     "type": "vegetar",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "pasta",
@@ -1382,6 +1400,7 @@
   {
     "name": "Pitabrød",
     "type": "kød",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "pitabrød",
@@ -1400,6 +1419,7 @@
   {
     "name": "fried rice",
     "type": "vegetar",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "ris",
@@ -1426,6 +1446,7 @@
   {
     "name": "svensk pølseret",
     "type": "kød",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "kartofler",
@@ -1510,6 +1531,7 @@
   {
     "name": "Torsk med pasta",
     "type": "fisk",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "pasta",
@@ -1524,6 +1546,7 @@
   {
     "name": "Flødekartofler med frikadeller",
     "type": "kød",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "kartofler",
@@ -1542,6 +1565,7 @@
   {
     "name": "Pasta bolognese",
     "type": "kød",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "hakket oksekød",
@@ -1588,6 +1612,7 @@
   {
     "name": "Kylling i peanutbutter",
     "type": "kød",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "kylling",
@@ -1622,6 +1647,7 @@
   {
     "name": "bygotto",
     "type": "vegetar",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "perlebyg",
@@ -1682,6 +1708,7 @@
   {
     "name": "laks i penang",
     "type": "fisk",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "laks",
@@ -1742,6 +1769,7 @@
   {
     "name": "ramen med sprød kylling",
     "type": "kød",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "kylling",
@@ -1804,6 +1832,7 @@
   {
     "name": "laks med pasta i fløde- og spinatsauce",
     "type": "fisk",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "laks",
@@ -1838,6 +1867,7 @@
   {
     "name": "poke bowl med laks",
     "type": "fisk",
+    "kidFriendly": true,
     "ingredients": [
       {
         "name": "ris",

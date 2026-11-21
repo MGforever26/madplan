@@ -42,15 +42,25 @@
       const before=(activeWeek&&activeWeek.changedAt)||null;
       const previousDays=days;
       const previousMeatDays=meatDays;
+      const previousKidFriendlyDays=kidFriendlyDays;
 
       days=5;
       if(meatDays>days) meatDays=days;
+      kidFriendlyDays=clampKidFriendlyDays(kidFriendlyDays);
+      if(window.madplanMealHistory?.canGenerateKidFriendlyPlan?.()===false){
+        days=previousDays;
+        meatDays=previousMeatDays;
+        kidFriendlyDays=previousKidFriendlyDays;
+        alert('Der er for få retter til en ny uge med de valgte køddage og børnesikre dage. Prøv at justere et af tallene.');
+        return;
+      }
       oldStartNewWeek();
 
       const after=(activeWeek&&activeWeek.changedAt)||null;
       if(!after || after===before){
         days=previousDays;
         meatDays=previousMeatDays;
+        kidFriendlyDays=previousKidFriendlyDays;
         return;
       }
 

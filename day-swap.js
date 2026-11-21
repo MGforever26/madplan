@@ -25,9 +25,13 @@
     return result;
   }
 
+  function swapFitsFilters(a,b){
+    return recipeFitsDay(a,byId(plan[b]))&&recipeFitsDay(b,byId(plan[a]));
+  }
+
   function swapDays(a,b){
     if(!Array.isArray(plan)||!Number.isInteger(a)||!Number.isInteger(b)||
-       a<0||b<0||a>=plan.length||b>=plan.length||a===b)return false;
+       a<0||b<0||a>=plan.length||b>=plan.length||a===b||!swapFitsFilters(a,b))return false;
     const amounts=window.madplanIngredientQuantities;
     // Do not discard per-recipe quantity choices if an older cached script is loaded.
     if(amounts&&typeof amounts.overrides==='function'&&
@@ -102,7 +106,7 @@
     const choices=document.createElement('div');
     choices.style.cssText='display:flex;flex-wrap:wrap;gap:6px';
     plan.forEach((rid,day)=>{
-      if(day===currentDay)return;
+      if(day===currentDay||!swapFitsFilters(currentDay,day))return;
       const choice=document.createElement('button');
       choice.type='button';
       choice.dataset.swapTarget=String(day);
@@ -118,7 +122,8 @@
       });
       choices.appendChild(choice);
     });
-    panel.appendChild(choices);
+    if(choices.childElementCount)panel.appendChild(choices);
+    else if(plan.length>1)label.textContent='Ingen bytninger passer til børnefilteret.';
 
     anchor.appendChild(panel);
   }

@@ -348,12 +348,72 @@
     return picked;
   }
 
+  function canFillPlan(pool, daysLeft, meatLeft, kidDaysLeft, excludedId){
+    let meat=0, other=0, kidMeat=0, kidOther=0;
+    for(const recipe of pool){
+      if(recipe.id===excludedId)continue;
+      if(recipe.type==='kød'){
+        meat++;
+        if(isKidFriendly(recipe))kidMeat++;
+      }else{
+        other++;
+        if(isKidFriendly(recipe))kidOther++;
+      }
+    }
+    const otherLeft=daysLeft-meatLeft;
+    return meatLeft>=0&&meatLeft<=meat&&otherLeft>=0&&otherLeft<=other
+      &&Math.min(meatLeft,kidMeat)+Math.min(otherLeft,kidOther)>=kidDaysLeft;
+  }
+
+  function distinctRecipes(pool){
+    return [...new Map(pool.map(recipe=>[recipe.id,recipe])).values()];
+  }
+
+  function weightedKidFriendlyPlan(pool){
+    const picked=[];
+    let meatLeft=meatDays;
+    let remaining=pool;
+    for(let day=0;day<days;day++){
+      const daysLeft=days-day-1;
+      const kidDaysLeft=Math.max(0,kidFriendlyDays-day-1);
+      // Hvert valg skal efterlade nok retter til begge krav på de resterende dage.
+      const candidates=remaining.filter(recipe=>recipeFitsDay(day,recipe)
+        &&canFillPlan(remaining,daysLeft,meatLeft-Number(recipe.type==='kød'),kidDaysLeft,recipe.id));
+      const [chosen]=weightedPick(candidates,1,picked);
+      if(!chosen)return null;
+      picked.push(chosen);
+      meatLeft-=Number(chosen.type==='kød');
+      remaining=remaining.filter(recipe=>recipe.id!==chosen.id);
+    }
+    return picked;
+  }
+
+  function finishGeneratedPlan(pick,persist){
+    plan=pick.map(r=>r.id);
+    if(activeWeek)activeWeek.suggestionsAligned=true;
+    excluded={};
+    buildShopping();
+    if(persist!==false)saveSession();
+  }
+
   if(typeof generatePlan==='function'){
     generatePlan=function(persist=true){
       // Reservér ugens fem forslag, så den genererede plan består af andre retter.
       const all=recipes||[];
       const reserved=new Set((activeWeek&&activeWeek.suggestionIds)||[]);
       const available=all.filter(r=>!reserved.has(r.id));
+      if(kidFriendlyDays){
+        const complete=distinctRecipes(recipes);
+        const alternatives=complete.filter(r=>!reserved.has(r.id));
+        const pool=canFillPlan(alternatives,days,meatDays,kidFriendlyDays)?alternatives:complete;
+        const pick=canFillPlan(pool,days,meatDays,kidFriendlyDays)?weightedKidFriendlyPlan(pool):null;
+        if(!pick){
+          if(persist!==false)alert('Der er for få retter til at kombinere de valgte køddage og børnesikre dage. Prøv at justere et af tallene.');
+          return false;
+        }
+        finishGeneratedPlan(pick,persist);
+        return;
+      }
       const requiredMeat=Math.min(Math.max(0,meatDays),days,all.filter(r=>r.type==='kød').length);
       // Brug kun forslagene, hvis det ellers ikke er muligt at udfylde planen.
       const pool=available.length>=days&&available.filter(r=>r.type==='kød').length>=requiredMeat?available:all;
@@ -366,11 +426,7 @@
       if(pick.length<days){
         pick=pick.concat(weightedPick(pool.filter(r=>!chosen.has(r.id)),days-pick.length,pick));
       }
-      plan=shuffle(pick).slice(0,days).map(r=>r.id);
-      if(activeWeek)activeWeek.suggestionsAligned=true;
-      excluded={};
-      buildShopping();
-      if(persist!==false)saveSession();
+      finishGeneratedPlan(shuffle(pick).slice(0,days),persist);
     };
   }
 
@@ -483,17 +539,23 @@
     dayCard=function(i,rid){
       const r=byId(rid);
       const state=suggestionState();
-      const suggested=state.ids.map(v=>(recipes||[]).find(x=>x.id===v)).filter(Boolean);
+      const allowed=recipes.filter(recipe=>recipeFitsDay(i,recipe));
+      const restricted=i<kidFriendlyDays;
+      const allowedById=new Map(allowed.map(recipe=>[recipe.id,recipe]));
+      const ranked=restricted?rankedSuggestionIds(recipes.length).filter(id=>!plan.includes(id)):[];
+      const suggested=[...new Set([...state.ids,...ranked])].map(id=>allowedById.get(id)).filter(Boolean).slice(0,5);
       const suggestedSet=new Set(suggested.map(x=>x.id));
-      const rest=(recipes||[]).filter(x=>!suggestedSet.has(x.id));
+      const rest=allowed.filter(x=>!suggestedSet.has(x.id));
       const picker='<details data-meal-picker="'+i+'" style="margin:10px 0">'
         +'<summary style="cursor:pointer;border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:#fff;font-weight:600">'+esc(cap(r.name))+'</summary>'
         +'<div data-meal-menu="'+i+'" style="margin-top:6px;border:1px solid var(--line);border-radius:14px;padding:8px;background:#fff;max-height:360px;overflow:auto">'
         +(suggested.length?'<div class="sub" style="font-weight:700;padding:5px 8px 6px">Oplagte denne uge</div>'+suggested.map(x=>pickerRow(i,x,x.id===rid)).join(''):'')
-        +'<div class="sub" style="font-weight:700;padding:10px 8px 6px">Alle øvrige retter</div>'
-        +rest.map(x=>pickerRow(i,x,x.id===rid)).join('')
+        +(rest.length?'<div class="sub" style="font-weight:700;padding:10px 8px 6px">'+(restricted?'Øvrige børnesikre retter':'Alle øvrige retter')+'</div>'
+          +rest.map(x=>pickerRow(i,x,x.id===rid)).join(''):'')
+        +(!allowed.length?'<div class="sub" style="padding:8px">Sæt kryds ved børnesikre retter i retbiblioteket.</div>':'')
         +'</div></details>';
       return '<div class="card day"><div class="bubble">'+(i+1)+'</div><div><div class="row" style="justify-content:space-between"><h3>Dag '+(i+1)+'</h3><span class="pill">'+esc(r.type)+'</span></div>'
+        +(restricted?'<span class="sub">Børnefilter</span>':'')
         +picker
         +(window.madplanIngredientQuantities&&typeof window.madplanIngredientQuantities.renderDay==='function'
           ?window.madplanIngredientQuantities.renderDay(i,r)
@@ -517,7 +579,8 @@
       document.querySelectorAll('[data-meal-day][data-meal-id]').forEach(b=>{
         b.onclick=()=>{
           const day=Number(b.dataset.mealDay),recipeId=b.dataset.mealId;
-          if(!Number.isInteger(day)||!recipeId)return;
+          const recipe=recipes.find(r=>r.id===recipeId);
+          if(!Number.isInteger(day)||day<0||day>=plan.length||!recipe||!recipeFitsDay(day,recipe))return;
           const fromSuggestion=b.dataset.suggestionChoice==='1';
           const changed=plan[day]!==recipeId;
           const assignments=Object.assign({},(activeWeek&&activeWeek.suggestionAssignments)||{});
@@ -557,13 +620,15 @@
       const note='Retter, vi ofte vælger, men ikke har fået i et stykke tid. Forslagene bygger på vores tidligere madplaner.';
 
       const chosen=suggested.find(r=>r.id===selectedSuggestionId);
+      const buttons=chosen?plan.map((currentId,day)=>{
+        if(!recipeFitsDay(day,chosen))return '';
+        const selected=activeWeek&&activeWeek.suggestionAssignments&&activeWeek.suggestionAssignments[chosen.id]===day&&currentId===chosen.id;
+        return '<button type="button" class="pill" data-meal-day="'+day+'" data-meal-id="'+esc(chosen.id)+'" data-suggestion-choice="1" aria-label="Vælg '+esc(cap(chosen.name))+' til dag '+(day+1)+'" style="cursor:pointer;font-family:inherit;padding:7px 10px;background:'+(selected?'var(--soft)':'#fff')+';border:1px solid var(--line)">Dag '+(day+1)+(selected?' ✓':'')+'</button>';
+      }).join(''):'';
       const chooser=chosen
         ?'<div class="row" style="gap:7px;margin-top:9px;align-items:center">'
-          +'<span class="sub" style="margin-right:2px">Vælg dag:</span>'
-          +(plan||[]).map((currentId,day)=>{
-             const selected=activeWeek&&activeWeek.suggestionAssignments&&activeWeek.suggestionAssignments[chosen.id]===day&&currentId===chosen.id;
-             return '<button type="button" class="pill" data-meal-day="'+day+'" data-meal-id="'+esc(chosen.id)+'" data-suggestion-choice="1" aria-label="Vælg '+esc(cap(chosen.name))+' til dag '+(day+1)+'" style="cursor:pointer;font-family:inherit;padding:7px 10px;background:'+(selected?'var(--soft)':'#fff')+';border:1px solid var(--line)">Dag '+(day+1)+(selected?' ✓':'')+'</button>';
-           }).join('')
+          +(buttons?'<span class="sub" style="margin-right:2px">Vælg dag:</span>'+buttons:
+            '<span class="sub">Retten kan vælges på en dag uden børnefilter.</span>')
           +'</div>'
         :'';
 
@@ -607,6 +672,7 @@
     },
     suggestions:()=>suggestionIds().map(x=>{const r=(recipes||[]).find(y=>y.id===x);return r?r.name:x;}),
     ensureAlternativeSuggestions,
+    canGenerateKidFriendlyPlan:(pool=recipes)=>!kidFriendlyDays||canFillPlan(distinctRecipes(pool),days,meatDays,kidFriendlyDays),
     mergeArchive:entries=>mergeHistory(entries),
     currentWeekEligible:()=>credibleWeek(activeWeek||{},currentRecipeNames(),new Date().toISOString())
   };

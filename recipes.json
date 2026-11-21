@@ -1834,5 +1834,43 @@
         "category": "grøntsager og frugt"
       }
     ]
+  },
+  {
+    "name": "poke bowl med laks",
+    "type": "fisk",
+    "ingredients": [
+      {
+        "name": "ris",
+        "category": "konserves og tørvarer"
+      },
+      {
+        "name": "laks",
+        "category": "andet"
+      },
+      {
+        "name": "gulerødder",
+        "category": "grøntsager og frugt"
+      },
+      {
+        "name": "edamamebønner",
+        "category": "frostvarer"
+      },
+      {
+        "name": "mango",
+        "category": "grøntsager og frugt"
+      },
+      {
+        "name": "kål",
+        "category": "grøntsager og frugt"
+      },
+      {
+        "name": "agurk",
+        "category": "grøntsager og frugt"
+      },
+      {
+        "name": "mayonnaise",
+        "category": "andet"
+      }
+    ]
   }
 ]

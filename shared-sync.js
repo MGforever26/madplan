@@ -452,6 +452,89 @@
     });
   }
 
+  const RECIPE_LIBRARY_ID='madplan-faelles-retter-v1';
+  let syncingRecipes=false, recipeSyncRequested=false;
+
+  async function readRecipeLibrary(){
+    const result=await jsonp({action:'get',id:RECIPE_LIBRARY_ID});
+    if(!result?.ok)throw new Error('Retbiblioteket kunne ikke hentes');
+    if(!result.found)return window.madplanRecipeLibrary.read(null);
+    const payload=result.week?.payload;
+    if(!payload)throw new Error('Retbiblioteket mangler på serveren');
+    const codec=window.madplanPayloadCodec;
+    const decoded=codec?await codec.decompress(payload):payload;
+    if(decoded?.v!==1||!decoded.recipes||!decoded.marks)
+      throw new Error('Retbiblioteket har et ukendt format');
+    return window.madplanRecipeLibrary.read(decoded);
+  }
+
+  async function writeRecipeLibrary(snapshot){
+    const version=new Date().toISOString();
+    const makeBody=payload=>new URLSearchParams({
+      action:'save',id:RECIPE_LIBRARY_ID,version,payload:JSON.stringify(payload),
+      lastEditor:deviceEditor(),note:'Fælles retbibliotek'
+    });
+    let payload=snapshot;
+    let body=makeBody(payload);
+    if(JSON.stringify(payload).length>44000||body.toString().length>55000){
+      const codec=window.madplanPayloadCodec;
+      if(!codec)throw new Error('Retbiblioteket er for stort til at gemme');
+      payload=await codec.compress(payload);
+      body=makeBody(payload);
+    }
+    if(JSON.stringify(payload).length>44000||body.toString().length>55000)
+      throw new Error('Retbiblioteket er for stort til at gemme');
+    await fetch(API,{
+      method:'POST',mode:'no-cors',keepalive:true,
+      headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+      body
+    });
+  }
+
+  function applyRecipeLibrary(incoming){
+    if(window.madplanRecipeLibrary.merge(incoming)){
+      renderRecipes();
+      renderPlan();
+    }
+  }
+
+  async function syncRecipeLibrary(){
+    if(syncingRecipes||window.madplanBootstrapping)return;
+    const library=window.madplanRecipeLibrary;
+    syncingRecipes=true;
+    recipeSyncRequested=false;
+    try{
+      const remote=await readRecipeLibrary();
+      applyRecipeLibrary(remote);
+      if(!library.includes(remote)){
+        updateRecipeSyncStatus('Synkroniserer retbibliotek…');
+        const snapshot=library.snapshot();
+        await writeRecipeLibrary(snapshot);
+        let checked;
+        for(let attempt=0;attempt<3;attempt++){
+          if(attempt)await new Promise(resolve=>setTimeout(resolve,600*attempt));
+          checked=await readRecipeLibrary();
+          applyRecipeLibrary(checked);
+          if(library.includes(checked,snapshot))break;
+        }
+        if(!library.includes(checked,snapshot))throw new Error('Gemningen blev ikke bekræftet');
+        if(!library.includes(checked))recipeSyncRequested=true;
+      }
+      updateRecipeSyncStatus('');
+    }catch(error){
+      updateRecipeSyncStatus('Retbibliotek afventer synkronisering. '+describeSyncFailure(error));
+    }finally{
+      syncingRecipes=false;
+      if(recipeSyncRequested)syncRecipeLibrary();
+    }
+  }
+
+  window.madplanSyncRecipeLibrary=function(){
+    recipeSyncRequested=true;
+    updateRecipeSyncStatus('Synkroniserer retbibliotek…');
+    syncRecipeLibrary();
+  };
+
   if(typeof buildShopping==='function'){
     buildShopping=function(opts={}){
       let keepManual=opts.keepManual!==false;
@@ -473,6 +556,23 @@
       applyShoppingSnapshot({sx:prior});
     };
   }
+
+  window.madplanRebuildAfterRecipeEdit=function(previous,recipe){
+    const delta=new Map();
+    for(const [definition,sign] of [[previous,-1],[recipe,1]]){
+      for(const ingredient of definition.ingredients){
+        const key=shoppingKey(ingredient.name,ingredient.category,'ret');
+        const entry=delta.get(key)||{name:ingredient.name.toLowerCase(),count:0};
+        entry.count+=sign;
+        delta.set(key,entry);
+      }
+    }
+    const affected=new Set([...delta.values()].filter(entry=>entry.count).map(entry=>entry.name));
+    if(!affected.size)return;
+    const retained=shoppingSnapshot().filter(([name,,source])=>source!=='ret'||!affected.has(name.toLowerCase()));
+    buildShopping();
+    applyShoppingSnapshot({sx:retained});
+  };
 
   if(typeof itemRow==='function'){
     itemRow=function(i){
@@ -661,6 +761,7 @@
       showSyncStatus('Kunne ikke hente den fælles madplan');
     }finally{
       window.madplanBootstrapping=false;
+      syncRecipeLibrary();
       try{
         if(!plan.length)generatePlan(false);
         saveSession(false);
@@ -672,17 +773,21 @@
 
   // Also refresh while both phones remain open. Focus/visibility still checks immediately.
   setInterval(()=>{
+    if(!document.hidden)syncRecipeLibrary();
     if(document.hidden||dirty||sending||syncing)return;
     loadRemote(activeWeek.id||CURRENT_ID,false);
   },30000);
 
   window.addEventListener('pagehide',()=>saveRemoteNow(false));
   window.addEventListener('beforeunload',()=>saveRemoteNow(false));
+  window.addEventListener('online',syncRecipeLibrary);
   window.addEventListener('focus',()=>{
+    syncRecipeLibrary();
     if(dirty)saveRemoteNow(false);
     else loadRemote(activeWeek.id||CURRENT_ID,false);
   });
   document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden)syncRecipeLibrary();
     if(document.hidden){if(dirty)saveRemoteNow(false);}
     else if(dirty)saveRemoteNow(false);
     else loadRemote(activeWeek.id||CURRENT_ID,false);

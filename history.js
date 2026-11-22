@@ -390,6 +390,7 @@
 
   function finishGeneratedPlan(pick,persist){
     plan=pick.map(r=>r.id);
+    weekRecipes=[];
     if(activeWeek)activeWeek.suggestionsAligned=true;
     excluded={};
     buildShopping();

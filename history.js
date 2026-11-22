@@ -2,6 +2,7 @@
   const HISTORY_KEY='madplan_meal_history_v1';
   const MAX_WEEKS=520;
   const DAY_MS=86400000;
+  const SUGGESTION_GAP_MS=21*DAY_MS;
   let mealHistory=loadHistory();
 
   function norm(x){
@@ -166,7 +167,7 @@
       archiveCurrentWeek();
       const m=oldNewWeekMeta();
       const now=new Date().toISOString();
-      const suggestions=calculateSuggestionState(new Set(),previousSuggestions);
+      const suggestions=calculateSuggestionState(new Set(),previousSuggestions,eligibleSuggestionIds(now));
       m.createdAt=now;
       m.lastSeenAt=now;
       m.suggestionIds=(suggestions.ids||[]).slice(0,5);
@@ -431,55 +432,39 @@
     };
   }
 
-  function rankedSuggestionIds(limit=5){
-    if(mealHistory.length<2||!Array.isArray(recipes)) return [];
-    return recipes.map(r=>{
+  function eligibleSuggestionIds(weekStart=activeWeek?.createdAt){
+    const parsed=Date.parse(weekStart);
+    const reference=Number.isFinite(parsed)?parsed:Date.now();
+    const seen=new Map();
+    for(const week of mealHistory){
+      const ended=Date.parse(week.endedAt);
+      if(!Number.isFinite(ended)||ended>reference)continue;
+      for(const name of new Set(week.recipes.map(norm))){
+        const old=seen.get(name);
+        seen.set(name,{weeks:(old?.weeks||0)+1,last:Math.max(old?.last||0,ended)});
+      }
+    }
+    return new Set(recipes.filter(recipe=>{
+      const usage=seen.get(norm(recipe.name));
+      return usage?.weeks>=2&&usage.last<=reference-SUGGESTION_GAP_MS;
+    }).map(recipe=>recipe.id));
+  }
+
+  function rankedSuggestionIds(limit=5,eligible=eligibleSuggestionIds()){
+    return recipes.filter(r=>eligible.has(r.id)).map(r=>{
       const s=historyStats(r.name);
-      // En ret, der jævnligt vælges, skal prioriteres over et enkelt
-      // historisk valg. Hvor længe siden den sidst var på planen,
-      // indgår allerede i recipeWeight.
       const regularity=1+Math.min(0.75,Math.max(0,s.usedWeeks-1)*0.15);
       return {r,s,score:recipeWeight(r)*regularity};
-    }).filter(x=>x.s.usedWeeks>0&&x.s.lastIndex>0)
-      .sort((a,b)=>b.score-a.score||b.s.lastIndex-a.s.lastIndex||a.r.name.localeCompare(b.r.name,'da'))
+    }).sort((a,b)=>b.score-a.score||b.s.lastIndex-a.s.lastIndex||a.r.name.localeCompare(b.r.name,'da'))
       .slice(0,limit).map(x=>x.r.id);
   }
 
-  function starterSuggestionIds(limit=5){
-    const preferred=['dahl','rød karry','fiskefrikadeller','Pasta bolognese','bygotto','tacos','butter chicken','pasta carbonara'];
-    const ids=[];
-    preferred.forEach(name=>{
-      const r=(recipes||[]).find(x=>norm(x.name)===norm(name));
-      if(r&&!ids.includes(r.id))ids.push(r.id);
-    });
-    (recipes||[]).forEach(r=>{if(ids.length<limit&&!ids.includes(r.id))ids.push(r.id);});
-    return ids.slice(0,limit);
-  }
-
-  function calculateSuggestionState(exclude=new Set(),previouslySuggested=new Set()){
-    const all=recipes||[];
-    const ranked=rankedSuggestionIds(all.length).filter(id=>!exclude.has(id));
-    const starters=starterSuggestionIds(all.length);
-    const prior=new Set(previouslySuggested||[]);
-    const ids=[];
-    function add(candidates,avoidPrevious){
-      for(const id of candidates){
-        if(ids.length>=5)break;
-        if(exclude.has(id)||ids.includes(id)||(avoidPrevious&&prior.has(id)))continue;
-        ids.push(id);
-      }
-    }
-    // Først retter, I faktisk har valgt, men ikke har fået for nylig.
-    // Dernæst varierede startforslag, mens der endnu mangler historik.
-    // De seneste to ugers forslag udelades, så længe der findes alternativer.
-    add(ranked,true);
-    add(starters,true);
-    add(all.map(r=>r.id),true);
-    // Små opskriftsdatabaser skal stadig kunne vise op til fem retter.
-    add(ranked,false);
-    add(starters,false);
-    add(all.map(r=>r.id),false);
-    return {ids:ids.slice(0,5),cold:!ranked.length&&mealHistory.length<2};
+  function calculateSuggestionState(exclude=new Set(),previouslySuggested=new Set(),eligible=eligibleSuggestionIds()){
+    const ranked=rankedSuggestionIds(eligible.size,eligible).filter(id=>!exclude.has(id));
+    // Foretræk gengangere, der heller ikke har været vist som forslag for nylig.
+    const fresh=ranked.filter(id=>!previouslySuggested.has(id));
+    const prior=ranked.filter(id=>previouslySuggested.has(id));
+    return {ids:[...fresh,...prior].slice(0,5),cold:false};
   }
 
   function saveWeekSuggestions(state){
@@ -492,35 +477,41 @@
     return state;
   }
 
-  // Éngangsrettelse af gamle uger. Efterfølgende manuelle valg må
-  // gerne overlappe forslagene, som så forbliver uændrede.
-  function ensureAlternativeSuggestions(){
+  function ensureAlternativeSuggestions(eligible=eligibleSuggestionIds()){
     try{
       if(!activeWeek||!Array.isArray(plan)||!plan.length)return false;
-      if(activeWeek.suggestionsAligned===true)return false;
-      const excluded=new Set(plan);
-      const oldIds=(activeWeek.suggestionIds||[]).filter(id=>(recipes||[]).some(r=>r.id===id));
-      const unique=[...new Set(oldIds)];
-      const count=Math.min(5,Math.max(0,(recipes||[]).length-excluded.size));
-      const needsChange=unique.length<count||unique.some(id=>excluded.has(id));
-      if(needsChange)saveWeekSuggestions(calculateSuggestionState(excluded));
+      const aligned=activeWeek.suggestionsAligned===true;
+      const planned=new Set(plan);
+      const saved=(activeWeek.suggestionIds||[]).slice(0,5);
+      const allowed=[...new Set(saved.filter(id=>eligible.has(id)&&(aligned||!planned.has(id))))];
+      const capacity=[...eligible].filter(id=>!planned.has(id)).length;
+      const needsChange=allowed.length<saved.length||allowed.length<Math.min(5,capacity);
+      if(aligned&&!needsChange)return false;
+      if(needsChange){
+        const replacement=calculateSuggestionState(new Set([...planned,...allowed]),new Set(activeWeek.suggestionRecentIds||[]),eligible);
+        const ids=[...allowed,...replacement.ids].slice(0,5);
+        saveWeekSuggestions({ids,cold:replacement.cold});
+        const assignments=aligned?Object.entries(activeWeek.suggestionAssignments||{}):[];
+        activeWeek.suggestionAssignments=Object.fromEntries(assignments.filter(([id])=>ids.includes(id)));
+      }else if(!aligned){
+        activeWeek.suggestionAssignments={};
+      }
       activeWeek.suggestionsAligned=true;
-      activeWeek.suggestionAssignments={};
       if(typeof store!=='undefined'&&store&&store.set)store.set('madplan_week_meta_v1',activeWeek);
       return needsChange;
     }catch(e){return false;}
   }
 
   function suggestionState(){
+    const eligible=eligibleSuggestionIds();
     try{
-      ensureAlternativeSuggestions();
-      if(activeWeek&&Array.isArray(activeWeek.suggestionIds)&&activeWeek.suggestionIds.length){
-        const valid=[...new Set(activeWeek.suggestionIds.filter(id=>(recipes||[]).some(r=>r.id===id)))].slice(0,5);
-        if(valid.length===5||valid.length===(recipes||[]).filter(r=>!plan.includes(r.id)).length)
-          return {ids:valid,cold:!!activeWeek.suggestionCold};
+      ensureAlternativeSuggestions(eligible);
+      if(activeWeek&&Array.isArray(activeWeek.suggestionIds)){
+        const ids=[...new Set(activeWeek.suggestionIds.filter(id=>eligible.has(id)))].slice(0,5);
+        return {ids,cold:!!activeWeek.suggestionCold};
       }
     }catch(e){}
-    const state=saveWeekSuggestions(calculateSuggestionState(new Set(plan||[])));
+    const state=saveWeekSuggestions(calculateSuggestionState(new Set(plan||[]),new Set(activeWeek?.suggestionRecentIds||[]),eligible));
     if(activeWeek){
       activeWeek.suggestionsAligned=true;
       if(typeof store!=='undefined'&&store&&store.set)store.set('madplan_week_meta_v1',activeWeek);

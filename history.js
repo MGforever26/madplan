@@ -167,7 +167,7 @@
       archiveCurrentWeek();
       const m=oldNewWeekMeta();
       const now=new Date().toISOString();
-      const suggestions=calculateSuggestionState(new Set(),previousSuggestions,eligibleSuggestionIds(now));
+      const suggestions=calculateSuggestionState(new Set(),previousSuggestions,suggestionPool(now));
       m.createdAt=now;
       m.lastSeenAt=now;
       m.suggestionIds=(suggestions.ids||[]).slice(0,5);
@@ -432,7 +432,11 @@
     };
   }
 
-  function eligibleSuggestionIds(weekStart=activeWeek?.createdAt){
+  function suggestionPool(weekStart=activeWeek?.createdAt){
+    const available=new Set(),regular=new Set();
+    // De arkiverede uger kan indeholde noget af perioden, vi skal udelukke.
+    const waiting=window.madplanArchive?.pendingHydration().some(id=>id.endsWith('-0'));
+    if(waiting)return {available,regular,waiting};
     const parsed=Date.parse(weekStart);
     const reference=Number.isFinite(parsed)?parsed:Date.now();
     const seen=new Map();
@@ -444,27 +448,29 @@
         seen.set(name,{weeks:(old?.weeks||0)+1,last:Math.max(old?.last||0,ended)});
       }
     }
-    return new Set(recipes.filter(recipe=>{
+    for(const recipe of recipes){
       const usage=seen.get(norm(recipe.name));
-      return usage?.weeks>=2&&usage.last<=reference-SUGGESTION_GAP_MS;
-    }).map(recipe=>recipe.id));
+      if(usage&&usage.last>reference-SUGGESTION_GAP_MS)continue;
+      available.add(recipe.id);
+      if(usage?.weeks>=2)regular.add(recipe.id);
+    }
+    return {available,regular,waiting:false};
   }
 
-  function rankedSuggestionIds(limit=5,eligible=eligibleSuggestionIds()){
-    return recipes.filter(r=>eligible.has(r.id)).map(r=>{
+  function calculateSuggestionState(exclude=new Set(),previouslySuggested=new Set(),pool=suggestionPool(),retained=[]){
+    const keep=new Set(retained);
+    const candidates=recipes.filter(r=>pool.available.has(r.id)&&!exclude.has(r.id)).map(r=>{
       const s=historyStats(r.name);
       const regularity=1+Math.min(0.75,Math.max(0,s.usedWeeks-1)*0.15);
-      return {r,s,score:recipeWeight(r)*regularity};
-    }).sort((a,b)=>b.score-a.score||b.s.lastIndex-a.s.lastIndex||a.r.name.localeCompare(b.r.name,'da'))
-      .slice(0,limit).map(x=>x.r.id);
-  }
-
-  function calculateSuggestionState(exclude=new Set(),previouslySuggested=new Set(),eligible=eligibleSuggestionIds()){
-    const ranked=rankedSuggestionIds(eligible.size,eligible).filter(id=>!exclude.has(id));
-    // Foretræk gengangere, der heller ikke har været vist som forslag for nylig.
-    const fresh=ranked.filter(id=>!previouslySuggested.has(id));
-    const prior=ranked.filter(id=>previouslySuggested.has(id));
-    return {ids:[...fresh,...prior].slice(0,5),cold:false};
+      return {
+        r,s,score:recipeWeight(r)*regularity,
+        regular:Number(pool.regular.has(r.id)), kept:Number(keep.has(r.id)), previous:Number(previouslySuggested.has(r.id))
+      };
+    });
+    candidates.sort((a,b)=>b.regular-a.regular||b.kept-a.kept||a.previous-b.previous
+      ||b.score-a.score||b.s.lastIndex-a.s.lastIndex||a.r.name.localeCompare(b.r.name,'da'));
+    const ids=candidates.slice(0,5).map(candidate=>candidate.r.id);
+    return {ids,cold:ids.some(id=>!pool.regular.has(id))};
   }
 
   function saveWeekSuggestions(state){
@@ -477,22 +483,26 @@
     return state;
   }
 
-  function ensureAlternativeSuggestions(eligible=eligibleSuggestionIds()){
+  function ensureAlternativeSuggestions(pool=suggestionPool()){
     try{
-      if(!activeWeek||!Array.isArray(plan)||!plan.length)return false;
+      if(pool.waiting||!activeWeek||!Array.isArray(plan)||!plan.length)return false;
       const aligned=activeWeek.suggestionsAligned===true;
       const planned=new Set(plan);
       const saved=(activeWeek.suggestionIds||[]).slice(0,5);
-      const allowed=[...new Set(saved.filter(id=>eligible.has(id)&&(aligned||!planned.has(id))))];
-      const capacity=[...eligible].filter(id=>!planned.has(id)).length;
-      const needsChange=allowed.length<saved.length||allowed.length<Math.min(5,capacity);
+      const allowed=[...new Set(saved.filter(id=>pool.available.has(id)&&(aligned||!planned.has(id))))];
+      const excluded=new Set(plan);
+      allowed.forEach(id=>excluded.delete(id));
+      const capacity=[...pool.available].filter(id=>!excluded.has(id)).length;
+      const regularCapacity=[...pool.regular].filter(id=>!excluded.has(id)).length;
+      const keptRegular=allowed.filter(id=>pool.regular.has(id)).length;
+      const needsChange=allowed.length!==saved.length||allowed.length<Math.min(5,capacity)
+        ||keptRegular<Math.min(5,regularCapacity);
       if(aligned&&!needsChange)return false;
       if(needsChange){
-        const replacement=calculateSuggestionState(new Set([...planned,...allowed]),new Set(activeWeek.suggestionRecentIds||[]),eligible);
-        const ids=[...allowed,...replacement.ids].slice(0,5);
-        saveWeekSuggestions({ids,cold:replacement.cold});
+        const replacement=calculateSuggestionState(excluded,new Set(activeWeek.suggestionRecentIds||[]),pool,allowed);
+        saveWeekSuggestions(replacement);
         const assignments=aligned?Object.entries(activeWeek.suggestionAssignments||{}):[];
-        activeWeek.suggestionAssignments=Object.fromEntries(assignments.filter(([id])=>ids.includes(id)));
+        activeWeek.suggestionAssignments=Object.fromEntries(assignments.filter(([id])=>replacement.ids.includes(id)));
       }else if(!aligned){
         activeWeek.suggestionAssignments={};
       }
@@ -503,20 +513,21 @@
   }
 
   function suggestionState(){
-    const eligible=eligibleSuggestionIds();
+    const pool=suggestionPool();
+    if(pool.waiting)return {ids:[],cold:false,pool};
     try{
-      ensureAlternativeSuggestions(eligible);
+      ensureAlternativeSuggestions(pool);
       if(activeWeek&&Array.isArray(activeWeek.suggestionIds)){
-        const ids=[...new Set(activeWeek.suggestionIds.filter(id=>eligible.has(id)))].slice(0,5);
-        return {ids,cold:!!activeWeek.suggestionCold};
+        const ids=[...new Set(activeWeek.suggestionIds.filter(id=>pool.available.has(id)))].slice(0,5);
+        return {ids,cold:ids.some(id=>!pool.regular.has(id)),pool};
       }
     }catch(e){}
-    const state=saveWeekSuggestions(calculateSuggestionState(new Set(plan||[]),new Set(activeWeek?.suggestionRecentIds||[]),eligible));
+    const state=saveWeekSuggestions(calculateSuggestionState(new Set(plan||[]),new Set(activeWeek?.suggestionRecentIds||[]),pool));
     if(activeWeek){
       activeWeek.suggestionsAligned=true;
       if(typeof store!=='undefined'&&store&&store.set)store.set('madplan_week_meta_v1',activeWeek);
     }
-    return state;
+    return {...state,pool};
   }
 
   function suggestionIds(limit=5){
@@ -534,8 +545,12 @@
       const allowed=recipes.filter(recipe=>recipeFitsDay(i,recipe));
       const restricted=i<kidFriendlyDays;
       const allowedById=new Map(allowed.map(recipe=>[recipe.id,recipe]));
-      const ranked=restricted?rankedSuggestionIds(recipes.length).filter(id=>!plan.includes(id)):[];
-      const suggested=[...new Set([...state.ids,...ranked])].map(id=>allowedById.get(id)).filter(Boolean).slice(0,5);
+      const excluded=new Set(plan.filter(id=>!state.ids.includes(id)));
+      const suggestedIds=restricted
+        ?calculateSuggestionState(new Set([...excluded,...recipes.filter(recipe=>!allowedById.has(recipe.id)).map(recipe=>recipe.id)]),
+          new Set(activeWeek?.suggestionRecentIds||[]),state.pool,state.ids).ids
+        :state.ids;
+      const suggested=suggestedIds.map(id=>allowedById.get(id)).filter(Boolean);
       const picker='<details data-meal-picker="'+i+'" style="margin:10px 0">'
         +'<summary style="cursor:pointer;border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:#fff;font-weight:600">'+esc(cap(r.name))+'</summary>'
         +'<div data-meal-menu="'+i+'" style="margin-top:6px;border:1px solid var(--line);border-radius:14px;padding:8px;background:#fff;max-height:360px;overflow:auto">'
@@ -607,7 +622,9 @@
       box.className='card no-print';
       box.style.padding='13px 16px';
       box.style.marginBottom='14px';
-      const note='Retter, vi ofte vælger, men ikke har fået i et stykke tid. Forslagene bygger på vores tidligere madplaner.';
+      const note=state.cold
+        ?'Forslag fra retbiblioteket. Retter fra de seneste tre uger er sorteret fra.'
+        :'Retter, vi ofte vælger, men ikke har fået i et stykke tid. Forslagene bygger på vores tidligere madplaner.';
 
       const chosen=suggested.find(r=>r.id===selectedSuggestionId);
       const buttons=chosen?plan.map((currentId,day)=>{
